@@ -3,10 +3,10 @@ RING_FINGER = [[58, 15, 16],[36.5, 14, 11], [27.5, 13.5, 9.5]];
 MIDDLE_FINGER = [[62, 16, 17],[38.3, 15, 14], [26.5, 13.5, 11]];
 INDEX_FINGER = [[56, 18, 16],[34, 15, 13.5], [25, 13.5, 10.5]];
 
-PINKY_POS = [0, 0, 0];
-RING_POS = [0, 20, 0];
-MIDDLE_POS = [0, 40, 0];
-INDEX_POS = [0, 60, 0];
+PINKY_POS = [77, -38.5, 0];
+RING_POS = [91, -20, 0];
+MIDDLE_POS = [99, 0, 0];
+INDEX_POS = [105, 24.5, 0];
 
 module FingerSegment(length, width, thickness)
 {
