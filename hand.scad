@@ -40,13 +40,19 @@ module Finger(sizes, angles)
 	distal_a = angles[DISTAL];
 	
 	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
+	translate([0, 0, proximate_s.z * FINGER_BONE_POS])
 	rotate(a = proximate_a, v = Y_AXIS)
+	translate([0, 0, -proximate_s.z * FINGER_BONE_POS])
 	{
 		translate([proximate_s.x, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
+		translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
 		rotate(a = intermediate_a, v = Y_AXIS)
+		translate([0, 0, -intermediate_s.z * FINGER_BONE_POS])
 		{
 			translate([intermediate_s.x, (intermediate_s.y - distal_s.y) / 2, (intermediate_s.z - distal_s.z)])
+			translate([0, 0, distal_s.z * FINGER_BONE_POS])
 			rotate(a = distal_a, v = Y_AXIS)
+			translate([0, 0, -distal_s.z * FINGER_BONE_POS])
 			{
 				// Distals
 				color("red") FingerSegment(distal_s.x, distal_s.y, distal_s.z);
