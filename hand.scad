@@ -39,26 +39,24 @@ module Finger(sizes, angles)
 	intermediate_a = angles[INTERMEDIATE];
 	distal_a = angles[DISTAL];
 	
-	rotate(a = proximate_a, v = Y_AXIS)
-	translate([proximate_s.x, 0, (proximate_s.z - intermediate_s.z) / 2])
-	{
-		rotate(a = intermediate_a, v = Y_AXIS)
-		translate([intermediate_s.x, 0, (intermediate_s.z - distal_s.z) / 2]) 
-		{
-			// Distals
-			rotate(a = distal_a, v = Y_AXIS)
-			translate([0, -distal_s.y / 2, -distal_s.z / 2]) 
-			color("red") FingerSegment(distal_s.x, distal_s.y, distal_s.z);
-		}
-		//Intermediates
-		rotate(a = intermediate_a, v = Y_AXIS)
-		translate([0, -intermediate_s.y / 2, -intermediate_s.z / 2]) 
-		color("green")FingerSegment(intermediate_s.x, intermediate_s.y, intermediate_s.z);
-	}
-	// Proximates
-	rotate(a = proximate_a, v = Y_AXIS)
 	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
-	color("blue") FingerSegment(proximate_s.x, proximate_s.y, proximate_s.z);
+	rotate(a = proximate_a, v = Y_AXIS)
+	{
+		translate([proximate_s.x, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
+		rotate(a = intermediate_a, v = Y_AXIS)
+		{
+			translate([intermediate_s.x, (intermediate_s.y - distal_s.y) / 2, (intermediate_s.z - distal_s.z)])
+			rotate(a = distal_a, v = Y_AXIS)
+			{
+				// Distals
+				color("red") FingerSegment(distal_s.x, distal_s.y, distal_s.z);
+			}
+			//Intermediates
+			color("green")FingerSegment(intermediate_s.x, intermediate_s.y, intermediate_s.z);
+		 }
+		// Proximates
+		color("blue") FingerSegment(proximate_s.x, proximate_s.y, proximate_s.z);
+	}
 }
 
 module Palm(size)
