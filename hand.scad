@@ -6,7 +6,7 @@ INDEX_FINGER = [[56, 18, 16],[34, 15, 13.5], [25, 13.5, 10.5]];
 PINKY_POS = [77, -38.5, 0];
 RING_POS = [91, -20, 0];
 MIDDLE_POS = [99, 0, 0];
-INDEX_POS = [105, 24.5, 0];
+INDEX_POS = [105, 21.5, 0];
 
 module FingerSegment(length, width, thickness)
 {
@@ -30,7 +30,14 @@ module Finger(configuration)
 	color("blue") FingerSegment(c[0][0], c[0][1], c[0][2]);
 }
 
+module Palm(size)
+{
+	translate([PINKY_POS.x - size.x, -size.y + INDEX_POS.y + INDEX_FINGER[0][1] / 2, -size.z / 2])
+	cube(size);
+}
+
 translate(PINKY_POS) Finger(PINKY_FINGER);
 translate(RING_POS) Finger(RING_FINGER);
 translate(MIDDLE_POS) Finger(MIDDLE_FINGER);
 translate(INDEX_POS) Finger(INDEX_FINGER);
+Palm([58, 80.35, INDEX_FINGER[0][2]]);
