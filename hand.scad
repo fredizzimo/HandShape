@@ -46,24 +46,48 @@ module Finger(sizes, angles)
 	rotate(a = side_a, v = Z_AXIS)
 	translate([0, -proximate_s.y / 2, -proximate_s.z * FINGER_BONE_POS])
 	{
-		translate([proximate_s.x, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
-		translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
-		rotate(a = intermediate_a, v = Y_AXIS)
-		translate([0, 0, -intermediate_s.z * FINGER_BONE_POS])
+		translate([proximate_s.x, 0, 0])
 		{
-			translate([intermediate_s.x, (intermediate_s.y - distal_s.y) / 2, (intermediate_s.z - distal_s.z)])
-			translate([0, 0, distal_s.z * FINGER_BONE_POS])
-			rotate(a = distal_a, v = Y_AXIS)
-			translate([0, 0, -distal_s.z * FINGER_BONE_POS])
+			color("green")
+			hull()
 			{
-				// Distals
-				color("red") FingerSegment(distal_s.x, distal_s.y, distal_s.z);
+				cube([0.01, proximate_s.y, proximate_s.z]);
+				// TODO: This transform is duplicated below
+				translate([0, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
+				translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
+				rotate(a = intermediate_a, v = Y_AXIS)
+				translate([0, 0, -intermediate_s.z * FINGER_BONE_POS])
+				{
+					//Intermediates
+					cube(intermediate_s);
+				}
 			}
-			//Intermediates
-			color("green")FingerSegment(intermediate_s.x, intermediate_s.y, intermediate_s.z);
+
+			// Here
+			translate([0, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
+			translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
+			rotate(a = intermediate_a, v = Y_AXIS)
+			translate([0, 0, -intermediate_s.z * FINGER_BONE_POS])
+			{
+
+				translate([intermediate_s.x, 0, 0])
+				color("red")
+				hull()
+				{
+					cube([0.01, intermediate_s.y, intermediate_s.z]);
+					translate([0, (intermediate_s.y - distal_s.y) / 2, (intermediate_s.z - distal_s.z)])
+					translate([0, 0, distal_s.z * FINGER_BONE_POS])
+					rotate(a = distal_a, v = Y_AXIS)
+					translate([0, 0, -distal_s.z * FINGER_BONE_POS])
+					{
+						// Distals
+						cube(distal_s);
+					}
+				}
+			}
 		 }
 		// Proximates
-		color("blue") FingerSegment(proximate_s.x, proximate_s.y, proximate_s.z);
+		color("blue") cube(proximate_s);
 	}
 }
 
