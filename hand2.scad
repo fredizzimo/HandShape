@@ -1,3 +1,4 @@
+// Original license and design before modifications:
 //=====================================
 // This is public Domain Code
 // Contributed by: Brandon Bowman
