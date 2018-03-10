@@ -29,6 +29,22 @@ module FingerSegment(length, width, thickness)
 	cube([length, width, thickness]);
 }
 
+module TranslateAndBendTwo(prev, cur, angle)
+{
+	translate([0, (prev.y - cur.y) / 2, (prev.z - cur.z)])
+	TranslateAndBendOne(cur, angle, 0)
+	children();
+}
+
+module TranslateAndBendOne(cur, angle, side_angle)
+{
+	translate([0, 0, cur.z * FINGER_BONE_POS])
+	rotate(a = angle, v = Y_AXIS)
+	rotate(a = side_angle, v = Z_AXIS)
+	translate([0, 0, -cur.z * FINGER_BONE_POS])
+	children();
+}
+
 module Finger(sizes, angles)
 {
 	proximate_s = sizes[PROXIMATE];
@@ -41,10 +57,7 @@ module Finger(sizes, angles)
 	side_a = angles[3];
 	
 	translate([0, 0, -proximate_s.z / 2]) 
-	translate([0, 0, proximate_s.z * FINGER_BONE_POS])
-	rotate(a = proximate_a, v = Y_AXIS)
-	rotate(a = side_a, v = Z_AXIS)
-	translate([0, -proximate_s.y / 2, -proximate_s.z * FINGER_BONE_POS])
+	TranslateAndBendOne(proximate_s, proximate_a, side_a)
 	{
 		translate([proximate_s.x, 0, 0])
 		{
@@ -52,22 +65,14 @@ module Finger(sizes, angles)
 			hull()
 			{
 				cube([0.01, proximate_s.y, proximate_s.z]);
-				// TODO: This transform is duplicated below
-				translate([0, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
-				translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
-				rotate(a = intermediate_a, v = Y_AXIS)
-				translate([0, 0, -intermediate_s.z * FINGER_BONE_POS])
+				TranslateAndBendTwo(proximate_s, intermediate_s, intermediate_a)
 				{
 					//Intermediates
 					cube(intermediate_s);
 				}
 			}
 
-			// Here
-			translate([0, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
-			translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
-			rotate(a = intermediate_a, v = Y_AXIS)
-			translate([0, 0, -intermediate_s.z * FINGER_BONE_POS])
+			TranslateAndBendTwo(proximate_s, intermediate_s, intermediate_a)
 			{
 
 				translate([intermediate_s.x, 0, 0])
@@ -75,10 +80,7 @@ module Finger(sizes, angles)
 				hull()
 				{
 					cube([0.01, intermediate_s.y, intermediate_s.z]);
-					translate([0, (intermediate_s.y - distal_s.y) / 2, (intermediate_s.z - distal_s.z)])
-					translate([0, 0, distal_s.z * FINGER_BONE_POS])
-					rotate(a = distal_a, v = Y_AXIS)
-					translate([0, 0, -distal_s.z * FINGER_BONE_POS])
+					TranslateAndBendTwo(intermediate_s, distal_s, distal_a)
 					{
 						// Distals
 						cube(distal_s);
