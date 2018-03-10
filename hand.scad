@@ -13,6 +13,16 @@ RING_ANGLES = [20, 30, 2/3 * 30];
 MIDDLE_ANGLES = [30, 40, 2/3 * 40];
 INDEX_ANGLES = [40, 50, 2/3 * 50];
 
+FINGER_BONE_POS = 2/3; // The vertical positions of the joints
+
+PROXIMATE = 0;
+INTERMEDIATE = 1;
+DISTAL = 2;
+
+X_AXIS = [1, 0, 0];
+Y_AXIS = [0, 1, 0];
+Z_AXIS = [0, 0, 1];
+
 
 module FingerSegment(length, width, thickness)
 {
@@ -21,28 +31,34 @@ module FingerSegment(length, width, thickness)
 
 module Finger(sizes, angles)
 {
-	s = sizes;
-	a = angles;
-	rotate(a = a[0], v = [0, 1, 0])
-	translate([s[0][0], 0, (s[0][2] - s[1][2]) / 2])
+	proximate_s = sizes[PROXIMATE];
+	intermediate_s = sizes[INTERMEDIATE];
+	distal_s = sizes[DISTAL];
+
+	proximate_a = angles[PROXIMATE];
+	intermediate_a = angles[INTERMEDIATE];
+	distal_a = angles[DISTAL];
+	
+	rotate(a = proximate_a, v = Y_AXIS)
+	translate([proximate_s.x, 0, (proximate_s.z - intermediate_s.z) / 2])
 	{
-		rotate(a = a[1], v = [0, 1, 0])
-		translate([s[1][0], 0, (s[1][2] - s[2][2]) / 2]) 
+		rotate(a = intermediate_a, v = Y_AXIS)
+		translate([intermediate_s.x, 0, (intermediate_s.z - distal_s.z) / 2]) 
 		{
 			// Distals
-			rotate(a = a[2], v = [0, 1, 0])
-			translate([0, -s[2][1] / 2, -s[2][2] / 2]) 
-			color("red") FingerSegment(s[2][0], s[2][1], s[2][2]);
+			rotate(a = distal_a, v = Y_AXIS)
+			translate([0, -distal_s.y / 2, -distal_s.z / 2]) 
+			color("red") FingerSegment(distal_s.x, distal_s.y, distal_s.z);
 		}
 		//Intermediates
-		rotate(a = a[1], v = [0, 1, 0])
-		translate([0, -s[1][1] / 2, -s[1][2] / 2]) 
-		color("green")FingerSegment(s[1][0], s[1][1], s[1][2]);
+		rotate(a = intermediate_a, v = Y_AXIS)
+		translate([0, -intermediate_s.y / 2, -intermediate_s.z / 2]) 
+		color("green")FingerSegment(intermediate_s.x, intermediate_s.y, intermediate_s.z);
 	}
 	// Proximates
-	rotate(a = a[0], v = [0, 1, 0])
-	translate([0, -s[0][1] / 2, -s[0][2] / 2]) 
-	color("blue") FingerSegment(s[0][0], s[0][1], s[0][2]);
+	rotate(a = proximate_a, v = Y_AXIS)
+	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
+	color("blue") FingerSegment(proximate_s.x, proximate_s.y, proximate_s.z);
 }
 
 module Palm(size)
