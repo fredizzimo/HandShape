@@ -40,11 +40,11 @@ module Finger(sizes, angles)
 	distal_a = angles[DISTAL];
 	side_a = angles[3];
 	
-	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
+	translate([0, 0, -proximate_s.z / 2]) 
 	translate([0, 0, proximate_s.z * FINGER_BONE_POS])
 	rotate(a = proximate_a, v = Y_AXIS)
 	rotate(a = side_a, v = Z_AXIS)
-	translate([0, 0, -proximate_s.z * FINGER_BONE_POS])
+	translate([0, -proximate_s.y / 2, -proximate_s.z * FINGER_BONE_POS])
 	{
 		translate([proximate_s.x, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
 		translate([0, 0, intermediate_s.z * FINGER_BONE_POS])
