@@ -8,10 +8,10 @@ RING_POS = [91, -20, 0];
 MIDDLE_POS = [99, 0, 0];
 INDEX_POS = [105, 21.5, 0];
 
-PINKY_ANGLES = [10, 20, 2/3 * 20];
-RING_ANGLES = [20, 30, 2/3 * 30];
-MIDDLE_ANGLES = [30, 40, 2/3 * 40];
-INDEX_ANGLES = [40, 50, 2/3 * 50];
+PINKY_ANGLES = [10, 20, 2/3 * 20, -20];
+RING_ANGLES = [20, 30, 2/3 * 30, -10];
+MIDDLE_ANGLES = [30, 40, 2/3 * 40, 0];
+INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
 
 FINGER_BONE_POS = 2/3; // The vertical positions of the joints
 
@@ -38,10 +38,12 @@ module Finger(sizes, angles)
 	proximate_a = angles[PROXIMATE];
 	intermediate_a = angles[INTERMEDIATE];
 	distal_a = angles[DISTAL];
+	side_a = angles[3];
 	
 	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
 	translate([0, 0, proximate_s.z * FINGER_BONE_POS])
 	rotate(a = proximate_a, v = Y_AXIS)
+	rotate(a = side_a, v = Z_AXIS)
 	translate([0, 0, -proximate_s.z * FINGER_BONE_POS])
 	{
 		translate([proximate_s.x, (proximate_s.y - intermediate_s.y) / 2, (proximate_s.z - intermediate_s.z)])
