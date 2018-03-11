@@ -63,7 +63,7 @@ module Finger(sizes, angles)
 	distal_a = angles[DISTAL];
 	side_a = angles[3];
 	
-	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
+	translate([0, -proximate_s.y / 2, -proximate_s.z]) 
 	TranslateAndBendOne(proximate_s, proximate_a, side_a)
 	{
 		translate([proximate_s.x, 0, 0])
@@ -104,8 +104,17 @@ function CylinderAngle(h, r1, r2) =
 	let(y=abs(r1-r2))
 	atan(y / h);
 
+module WristSide(length)
+{
+	wrist_cylinder_radius = PALM_BASE_THICKNESS / 2;
+	translate([0, WRIST_WIDTH / 2 - wrist_cylinder_radius, - wrist_cylinder_radius + PINKY_POS.z])
+	rotate(a = 90, v = Y_AXIS)
+	cylinder(length, r1 = wrist_cylinder_radius, r2 = wrist_cylinder_radius);
+}
+
 module Palm()
 {
+	wrist_length = PINKY_POS.x - PALM_LENGTH;
 	hull()
 	{
 		outside = [PALM_LENGTH, PALM_BASE_THICKNESS / 2, OUTSIDE_KNUCKLE_THICKNESS / 2];
@@ -115,7 +124,7 @@ module Palm()
 		diff = outside_pos - wrist_half_width;
 		outside_angle = atan(diff / outside[0]);
 		
-		translate([PINKY_POS.x, PINKY_POS.y, -outside[2]])
+		translate([PINKY_POS.x, PINKY_POS.y, -outside[1]])
 		rotate(a = -outside_cylinder_angle - outside_angle, v = Z_AXIS)
 		translate(-[outside[0], 0, 0])
 		rotate(a = 90 - outside_cylinder_angle, v = Y_AXIS)
@@ -124,12 +133,37 @@ module Palm()
 		inside = [PALM_LENGTH + INDEX_POS.x - PINKY_POS.x, PALM_BASE_THICKNESS / 2, INSIDE_KNUCKLE_THICKNESS / 2];
 		inside_cylinder_angle = CylinderAngle(inside[0], inside[1], inside[2]);
 
-		translate([INDEX_POS.x, INDEX_POS.y, -inside[2]])
+		translate([INDEX_POS.x, INDEX_POS.y, -inside[1]])
 		rotate(a = inside_cylinder_angle, v = Z_AXIS)
 		translate(-[inside[0], 0, 0])
 		rotate(a = 90 - inside_cylinder_angle, v = Y_AXIS)
 		cylinder(inside[0], inside[1], inside[2]);
 
+		overlap = 1;
+		translate([wrist_length - overlap, 0 , 0])
+		WristSide(overlap);
+		
+		translate([wrist_length - overlap, 0 , 0])
+		mirror(Y_AXIS)
+		WristSide(overlap);
+	}
+	hull()
+	{
+
+		WristSide(wrist_length);
+		
+		mirror(Y_AXIS)
+		WristSide(wrist_length);
+
+	}
+	hull()
+	{
+		mirror(X_AXIS)
+		WristSide(100);
+
+		mirror(Y_AXIS)
+		mirror(X_AXIS)
+		WristSide(100);
 	}
 }
 
