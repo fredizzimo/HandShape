@@ -20,6 +20,7 @@ PALM_LENGTH = 61;
 OUTSIDE_KNUCKLE_THICKNESS = 23;
 INSIDE_KNUCKLE_THICKNESS = 28;
 PALM_BASE_THICKNESS = 41;
+ARM_LENGTH = 100;
 
 
 PROXIMATE = 0;
@@ -159,11 +160,11 @@ module Palm()
 	hull()
 	{
 		mirror(X_AXIS)
-		WristSide(100);
+		WristSide(ARM_LENGTH);
 
 		mirror(Y_AXIS)
 		mirror(X_AXIS)
-		WristSide(100);
+		WristSide(ARM_LENGTH);
 	}
 }
 
