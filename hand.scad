@@ -15,6 +15,13 @@ INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
 
 FINGER_BONE_POS = 2/3; // The vertical positions of the joints
 
+WRIST_WIDTH = 58;
+PALM_LENGTH = 61;
+OUTSIDE_KNUCKLE_THICKNESS = 23;
+INSIDE_KNUCKLE_THICKNESS = 28;
+PALM_BASE_THICKNESS = 41;
+
+
 PROXIMATE = 0;
 INTERMEDIATE = 1;
 DISTAL = 2;
@@ -56,7 +63,7 @@ module Finger(sizes, angles)
 	distal_a = angles[DISTAL];
 	side_a = angles[3];
 	
-	translate([0, 0, -proximate_s.z / 2]) 
+	translate([0, -proximate_s.y / 2, -proximate_s.z / 2]) 
 	TranslateAndBendOne(proximate_s, proximate_a, side_a)
 	{
 		translate([proximate_s.x, 0, 0])
@@ -93,14 +100,41 @@ module Finger(sizes, angles)
 	}
 }
 
-module Palm(size)
+function CylinderAngle(h, r1, r2) = 
+	let(y=abs(r1-r2))
+	atan(y / h);
+
+module Palm()
 {
-	translate([PINKY_POS.x - size.x, -size.y + INDEX_POS.y + INDEX_FINGER[0][1] / 2, -size.z / 2])
-	cube(size);
+	hull()
+	{
+		outside = [PALM_LENGTH, PALM_BASE_THICKNESS / 2, OUTSIDE_KNUCKLE_THICKNESS / 2];
+		outside_cylinder_angle = CylinderAngle(outside[0], outside[1], outside[2]);
+		outside_pos = abs(PINKY_POS.y - outside[2]);
+		wrist_half_width = WRIST_WIDTH / 2;
+		diff = outside_pos - wrist_half_width;
+		outside_angle = atan(diff / outside[0]);
+		
+		translate([PINKY_POS.x, PINKY_POS.y, -outside[2]])
+		rotate(a = -outside_cylinder_angle - outside_angle, v = Z_AXIS)
+		translate(-[outside[0], 0, 0])
+		rotate(a = 90 - outside_cylinder_angle, v = Y_AXIS)
+		cylinder(outside[0], outside[1], outside[2]);
+
+		inside = [PALM_LENGTH + INDEX_POS.x - PINKY_POS.x, PALM_BASE_THICKNESS / 2, INSIDE_KNUCKLE_THICKNESS / 2];
+		inside_cylinder_angle = CylinderAngle(inside[0], inside[1], inside[2]);
+
+		translate([INDEX_POS.x, INDEX_POS.y, -inside[2]])
+		rotate(a = inside_cylinder_angle, v = Z_AXIS)
+		translate(-[inside[0], 0, 0])
+		rotate(a = 90 - inside_cylinder_angle, v = Y_AXIS)
+		cylinder(inside[0], inside[1], inside[2]);
+
+	}
 }
 
 translate(PINKY_POS) Finger(PINKY_FINGER, PINKY_ANGLES);
 translate(RING_POS) Finger(RING_FINGER, RING_ANGLES);
 translate(MIDDLE_POS) Finger(MIDDLE_FINGER, MIDDLE_ANGLES);
 translate(INDEX_POS) Finger(INDEX_FINGER, INDEX_ANGLES);
-Palm([58, 80.35, INDEX_FINGER[0][2]]);
+Palm();
