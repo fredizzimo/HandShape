@@ -101,6 +101,14 @@ module Finger(sizes, angles)
 	}
 }
 
+module Fingers()
+{
+	translate(PINKY_POS) Finger(PINKY_FINGER, PINKY_ANGLES);
+	translate(RING_POS) Finger(RING_FINGER, RING_ANGLES);
+	translate(MIDDLE_POS) Finger(MIDDLE_FINGER, MIDDLE_ANGLES);
+	translate(INDEX_POS) Finger(INDEX_FINGER, INDEX_ANGLES);
+}
+
 function CylinderAngle(h, r1, r2) = 
 	let(y=abs(r1-r2))
 	atan(y / h);
@@ -150,13 +158,15 @@ module Palm()
 	}
 	hull()
 	{
-
 		WristSide(wrist_length);
 		
 		mirror(Y_AXIS)
 		WristSide(wrist_length);
-
 	}
+}
+
+module Arm()
+{
 	hull()
 	{
 		mirror(X_AXIS)
@@ -168,8 +178,15 @@ module Palm()
 	}
 }
 
-translate(PINKY_POS) Finger(PINKY_FINGER, PINKY_ANGLES);
-translate(RING_POS) Finger(RING_FINGER, RING_ANGLES);
-translate(MIDDLE_POS) Finger(MIDDLE_FINGER, MIDDLE_ANGLES);
-translate(INDEX_POS) Finger(INDEX_FINGER, INDEX_ANGLES);
-Palm();
+module Hand(extension, deviation)
+{
+	rotate(extension, Y_AXIS)
+	rotate(deviation, Z_AXIS)
+	{
+		Fingers();
+		Palm();
+	}
+	Arm();
+}
+
+Hand(-30, 20);
