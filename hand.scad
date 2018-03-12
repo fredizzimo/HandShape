@@ -14,13 +14,14 @@ MIDDLE_ANGLES = [30, 40, 2/3 * 40, 0];
 INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
 
 FINGER_BONE_POS = 2/3; // The vertical positions of the joints
+WRIST_BONE_POS = [2/3, 2/5]; // horisontal / vertical
 
 WRIST_WIDTH = 58;
 PALM_LENGTH = 61;
 OUTSIDE_KNUCKLE_THICKNESS = 23;
 INSIDE_KNUCKLE_THICKNESS = 28;
 PALM_BASE_THICKNESS = 41;
-ARM_LENGTH = 100;
+ARM_LENGTH = 50;
 
 
 PROXIMATE = 0;
@@ -156,6 +157,11 @@ module Palm()
 		mirror(Y_AXIS)
 		WristSide(overlap);
 	}
+}
+
+module Wrist()
+{
+	wrist_length = PINKY_POS.x - PALM_LENGTH;
 	hull()
 	{
 		WristSide(wrist_length);
@@ -165,28 +171,48 @@ module Palm()
 	}
 }
 
-module Arm()
+module Arm(length)
 {
 	hull()
 	{
 		mirror(X_AXIS)
-		WristSide(ARM_LENGTH);
+		WristSide(length);
 
 		mirror(Y_AXIS)
 		mirror(X_AXIS)
-		WristSide(ARM_LENGTH);
+		WristSide(length);
 	}
+}
+
+module RotateWrist(extension, deviation)
+{
+	half_wrist = WRIST_WIDTH / 2;
+	bone_pos = [0, -WRIST_WIDTH * WRIST_BONE_POS.x + half_wrist, PALM_BASE_THICKNESS * WRIST_BONE_POS.y];
+	translate(-bone_pos)
+	rotate(extension, Y_AXIS)
+	rotate(deviation, Z_AXIS)
+	translate(bone_pos)
+	children();
 }
 
 module Hand(extension, deviation)
 {
-	rotate(extension, Y_AXIS)
-	rotate(deviation, Z_AXIS)
+	RotateWrist(extension, deviation)
 	{
 		Fingers();
 		Palm();
 	}
-	Arm();
+
+	hull()
+	{
+		RotateWrist(extension, deviation)
+		{
+			Wrist();
+		}
+		Arm(10);
+	}
+
+	Arm(ARM_LENGTH);
 }
 
-Hand(-30, 20);
+Hand(-30, -20);
