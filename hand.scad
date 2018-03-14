@@ -16,6 +16,10 @@ INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
 FINGER_BONE_POS = 2/3; // The vertical positions of the joints
 WRIST_BONE_POS = [2/3, 2/5]; // horisontal / vertical
 
+PINKY_INTERDIGITAL_FOLD = 15;
+RING_INTERDIGITAL_FOLD = 20;
+MIDDLE_INTERDIGITAL_FOLD = 23;
+
 WRIST_WIDTH = 58;
 PALM_LENGTH = 61;
 OUTSIDE_KNUCKLE_THICKNESS = 23;
@@ -102,12 +106,50 @@ module Finger(sizes, angles)
 	}
 }
 
+module InterdigitalFold(sizes, angles, fold)
+{
+	proximate_s = sizes[PROXIMATE];
+	proximate_a = angles[PROXIMATE];
+	side_a = angles[3];
+
+	translate([0, -proximate_s.y / 2, -proximate_s.z]) 
+	TranslateAndBendOne(proximate_s, proximate_a, side_a)
+	{
+		{
+			translate([0, proximate_s.y, 0])
+			rotate(90, X_AXIS)
+			linear_extrude(height=proximate_s.y)
+			polygon([[0, 0], [fold, 0], [0, proximate_s.z]]);
+
+			//translate([0, proximate_s.y, 0])
+			//rotate(90, X_AXIS)
+			//polygon([[0, 0], [10, 0], [0, proximate_s.z]]);
+		}
+	}
+}
+
 module Fingers()
 {
 	translate(PINKY_POS) Finger(PINKY_FINGER, PINKY_ANGLES);
 	translate(RING_POS) Finger(RING_FINGER, RING_ANGLES);
 	translate(MIDDLE_POS) Finger(MIDDLE_FINGER, MIDDLE_ANGLES);
 	translate(INDEX_POS) Finger(INDEX_FINGER, INDEX_ANGLES);
+
+	hull()
+	{
+		translate(PINKY_POS) InterdigitalFold(PINKY_FINGER, PINKY_ANGLES, PINKY_INTERDIGITAL_FOLD);
+		translate(RING_POS) InterdigitalFold(RING_FINGER, RING_ANGLES, PINKY_INTERDIGITAL_FOLD);
+	}
+	hull()
+	{
+		translate(RING_POS) InterdigitalFold(RING_FINGER, RING_ANGLES, RING_INTERDIGITAL_FOLD);
+		translate(MIDDLE_POS) InterdigitalFold(MIDDLE_FINGER, MIDDLE_ANGLES, RING_INTERDIGITAL_FOLD);
+	}
+	hull()
+	{
+		translate(MIDDLE_POS) InterdigitalFold(MIDDLE_FINGER, MIDDLE_ANGLES, MIDDLE_INTERDIGITAL_FOLD);
+		translate(INDEX_POS) InterdigitalFold(INDEX_FINGER, INDEX_ANGLES, MIDDLE_INTERDIGITAL_FOLD);
+	}
 }
 
 function CylinderAngle(h, r1, r2) = 
