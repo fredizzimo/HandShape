@@ -74,7 +74,6 @@ module Finger(sizes, angles)
 	{
 		translate([proximate_s.x, 0, 0])
 		{
-			color("green")
 			hull()
 			{
 				cube([0.01, proximate_s.y, proximate_s.z]);
@@ -89,7 +88,6 @@ module Finger(sizes, angles)
 			{
 
 				translate([intermediate_s.x, 0, 0])
-				color("red")
 				hull()
 				{
 					cube([0.01, intermediate_s.y, intermediate_s.z]);
@@ -102,7 +100,7 @@ module Finger(sizes, angles)
 			}
 		 }
 		// Proximates
-		color("blue") cube(proximate_s);
+		cube(proximate_s);
 	}
 }
 
@@ -260,4 +258,5 @@ module Hand(extension, deviation)
 	Arm(ARM_LENGTH);
 }
 
+color("BurlyWood")
 Hand(-30, -20);
