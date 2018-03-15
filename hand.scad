@@ -120,10 +120,6 @@ module InterdigitalFold(sizes, angles, fold)
 			rotate(90, X_AXIS)
 			linear_extrude(height=proximate_s.y)
 			polygon([[0, 0], [fold, 0], [0, proximate_s.z]]);
-
-			//translate([0, proximate_s.y, 0])
-			//rotate(90, X_AXIS)
-			//polygon([[0, 0], [10, 0], [0, proximate_s.z]]);
 		}
 	}
 }
@@ -134,7 +130,10 @@ module Fingers()
 	translate(RING_POS) Finger(RING_FINGER, RING_ANGLES);
 	translate(MIDDLE_POS) Finger(MIDDLE_FINGER, MIDDLE_ANGLES);
 	translate(INDEX_POS) Finger(INDEX_FINGER, INDEX_ANGLES);
+}
 
+module InterdigitalFolds()
+{
 	hull()
 	{
 		translate(PINKY_POS) InterdigitalFold(PINKY_FINGER, PINKY_ANGLES, PINKY_INTERDIGITAL_FOLD);
@@ -242,7 +241,11 @@ module Hand(extension, deviation)
 	RotateWrist(extension, deviation)
 	{
 		Fingers();
-		Palm();
+		hull()
+		{
+			InterdigitalFolds();
+			Palm();
+		}
 	}
 
 	hull()
