@@ -6,8 +6,9 @@ module SideCutout()
 	polygon([[0, 0], [3, 0], [3, 0.5]]);
 }
 
-module SwitchCutout(depth)
+module SwitchCutout(depth, scale)
 {
+	scale([scale, scale, 1.0])
 	difference()
 	{
 		translate([-14 / 2, -14 / 2, -1.5 - 3])
@@ -21,18 +22,18 @@ module SwitchCutout(depth)
 
 	cube([14, 13, depth], center = true);
 
-	translate([-15.6 / 2, -5 / 2, -depth / 2])
-	cube([15.6, 5, depth / 2 - 1.5]);
+	translate([-16 / 2, -5 / 2, -depth / 2])
+	cube([16, 5, depth / 2 - 1.5]);
 }
 
 module SwitchTest()
 {
 	difference()
 	{
-		translate([0, 0, -6 / 2])
-		cube([20, 20, 6], center = true);
+		translate([0, 0, -4 / 2])
+		cube([20, 20, 4], center = true);
 		
-		SwitchCutout(15);
+		SwitchCutout(10, 1.01);
 	}
 }
 
