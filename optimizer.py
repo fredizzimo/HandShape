@@ -1,11 +1,14 @@
 import numpy as np
+import scipy as sp
+from scipy.spatial.distance import sqeuclidean
+from scipy.optimize import minimize
 from math import sin
 
 
 def calculate_xy(hand_angles, hand_lengths):
-    hand_angles.append(hand_angles[2] * 2.0 / 3.0)
-    hand_angles = np.radians(hand_angles)
-    cum_angles = np.cumsum(hand_angles)
+    angles = np.append(hand_angles, [hand_angles[2] * 2.0 / 3.0])
+    angles = np.radians(angles)
+    cum_angles = np.cumsum(angles)
     cos_angles = np.cos(cum_angles)
     sin_angles = np.sin(cum_angles)
     x_lengths = np.multiply(cos_angles, hand_lengths)
@@ -14,7 +17,7 @@ def calculate_xy(hand_angles, hand_lengths):
     #print("y lengths ",  y_lengths)
     x = np.sum(x_lengths)
     y = np.sum(y_lengths)
-    return [x, y]
+    return np.array((x, y))
 
 
 def main():
@@ -23,7 +26,18 @@ def main():
     res = calculate_xy(hand_angles, hand_lengths)
     print("Final", res)
 
-    pass
+    def f(angles):
+        xy = calculate_xy(angles, hand_lengths)
+        return sqeuclidean(res, xy)
+    print(f(hand_angles))
+
+    min_res = minimize(f, [0, 1, 1], method="L-BFGS-B", bounds=((-50, 50),(0, 80),(0,80)), tol=1e-10)
+    print(min_res)
+
+    print(calculate_xy(min_res.x, hand_lengths))
+
+
+
 
 if __name__ == "__main__":
     main()
