@@ -2,7 +2,7 @@ import numpy as np
 import scipy as sp
 from scipy.spatial.distance import sqeuclidean
 from scipy.optimize import minimize
-from math import sin
+from math import fabs
 
 
 def calculate_xy(hand_angles, hand_lengths):
@@ -28,9 +28,17 @@ def main():
 
     def f(angles):
         xy = calculate_xy(angles, hand_lengths)
-        return sqeuclidean(res, xy)
+        dist = sqeuclidean(res, xy)
+        return fabs(angles[0]) * 0.01 + dist
+        if (dist > 0.1):
+            return dist + 90
+        else:
+            return fabs(angles[0]) + dist
+
+
     print(f(hand_angles))
 
+    #min_res = minimize(f, [0, 1, 1], method="TNC", bounds=((-50, 50),(0, 80),(0,80)), tol=1e-10, options={"maxiter": 500})
     min_res = minimize(f, [0, 1, 1], method="L-BFGS-B", bounds=((-50, 50),(0, 80),(0,80)), tol=1e-10)
     print(min_res)
 
