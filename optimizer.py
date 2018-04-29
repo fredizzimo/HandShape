@@ -65,12 +65,21 @@ def optimize_switch_angle(switch_pos, hand_lengths):
     return min_res.x[0]
 
 
+def optimize_switch(switch_pos, hand_lengths):
+    def f(angles):
+        return calculate_finger(switch_pos, angles[0], angles[1], hand_lengths)[0]
+
+    minimizer = dict(method="L-BFGS-B", bounds=((-80, 80), (0, 80)), tol=1e-10)
+    min_res = basinhopping(f, (0, 0), niter=10, minimizer_kwargs=minimizer)
+
+    return min_res.x[0], min_res.x[1]
+
+
 def main():
     hand_lengths = [105, 56, 34, 25]
     switch_pos = (200, 0)
 
-    switch_angle = optimize_switch_angle(switch_pos, hand_lengths)
-    finger_angle = optimize_finger(switch_pos, switch_angle, hand_lengths)
+    switch_angle, finger_angle = optimize_switch(switch_pos, hand_lengths)
     _, angles = calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths)
     final_angle = angles.tolist()
     print("Switch angle:%f" % switch_angle)
