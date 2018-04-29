@@ -9,7 +9,7 @@ switch_finger_angle = 20
 
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
-    angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, -switch_angle))
+    angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, switch_angle))
     angles = angles
     angles = np.flipud(angles)
     angles = np.radians(angles)
@@ -59,8 +59,8 @@ def optimize_switch_angle(switch_pos, hand_lengths):
         finger_angle = optimize_finger(switch_pos, switch_angle[0], hand_lengths)
         return calculate_finger(switch_pos, switch_angle[0], finger_angle, hand_lengths)[0]
 
-    minimizer = dict(method="L-BFGS-B", bounds=((0, 80),), tol=1e-10)
-    min_res = basinhopping(f, 40, niter=10, minimizer_kwargs=minimizer)
+    minimizer = dict(method="L-BFGS-B", bounds=((-80, 80),), tol=1e-10)
+    min_res = basinhopping(f, 0, niter=10, minimizer_kwargs=minimizer)
 
     return min_res.x[0]
 
@@ -73,6 +73,7 @@ def main():
     finger_angle = optimize_finger(switch_pos, switch_angle, hand_lengths)
     _, angles = calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths)
     final_angle = angles.tolist()
+    print("Switch angle:%f" % switch_angle)
     print("RESULT=%s;" % str(final_angle))
 
 
