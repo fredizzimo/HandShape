@@ -39,7 +39,7 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     palm_pos = positions[3] + palm_vec_norm * hand_lengths[0]
     final_angles = np.asarray((-palm_angle, np.degrees(proximal_palm_angle), finger_angle))
 
-    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(angles[0])
+    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(np.degrees(angles[0]))
 
     return effort, final_angles
 
@@ -91,25 +91,47 @@ def get_switch_positions(switch_pos, angles):
     return mid_positions
 
 
-def optimize_switches(switch_pos, hand_lengths, num):
-    def f(angles):
-        switch_angles = angles[:num]
-        finger_angles = angles[num:]
+def optimize_switches(hand_lengths, num):
+    def f(params):
+        switch_angles = params[:num]
+        finger_angles = params[num:-2]
+        switch_pos = params[-2:]
         positions = get_switch_positions(switch_pos, switch_angles)
         r = 0
-        for sp, sa, fa in zip(positions, angles[:num], finger_angles):
+        for sp, sa, fa in zip(positions, params[:num], finger_angles):
             r += calculate_finger(sp, sa, fa, hand_lengths)[0]
 
         return r
 
     bs = (-80, 80)
     bf = (0, 80)
+    bx = (hand_lengths[0] - hand_lengths[3], np.sum(hand_lengths) + switch_size)
+    by = (-np.sum(hand_lengths[1:]), hand_lengths[0])
 
-    minimizer = dict(method="L-BFGS-B", bounds=(bs, bs, bs, bf, bf, bf), tol=1e-10)
-    min_res = basinhopping(f, (0, 0, 0, 0, 0, 0), niter=10, minimizer_kwargs=minimizer)
+    initial_switch_angle = 0
+    initial_finger_angle = 0
+    initial_switch_pos = [hand_lengths[0], 0]
+
+    bounds = np.concatenate((
+        np.full((num, 2), bs),
+        np.full((num, 2), bf),
+        (bx,),
+        (by,)))
+
+    initial_values = np.concatenate((
+        np.full(num, initial_switch_angle),
+        np.full(num, initial_finger_angle),
+        (initial_switch_pos[0],),
+        (initial_switch_pos[1],)))
+
+    minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-10)
+    min_res = basinhopping(f, initial_values, niter=100, minimizer_kwargs=minimizer)
     switch_angles = min_res.x[:num]
-    finger_angles = min_res.x[num:]
+    finger_angles = min_res.x[num:-2]
+    switch_pos = min_res.x[-2:]
     switch_positions = get_switch_positions(switch_pos, switch_angles)
+
+    print(min_res)
 
     for sp, sa, fa in zip(switch_positions, switch_angles, finger_angles):
         _, angles = calculate_finger(sp, sa, fa, hand_lengths)
@@ -124,7 +146,7 @@ def main():
     hand_lengths = [105, 56, 34, 25]
     switch_pos = (170, 0)
 
-    optimize_switches(switch_pos, hand_lengths, 3)
+    optimize_switches( hand_lengths, 3)
 
     switch_pos = (179.40929736, 1.48011764)
 
