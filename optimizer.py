@@ -92,10 +92,19 @@ def get_switch_positions(switch_pos, angles):
 
 
 def optimize_switches(hand_lengths, num):
+    bs = (-80, 80)
+    bf = (0, 80)
+    bx = (hand_lengths[0] - hand_lengths[3], np.sum(hand_lengths) + switch_size)
+    by = (-np.sum(hand_lengths[1:]), hand_lengths[0])
+    bf = (0, 80)
+
+    def scale(a, s):
+        return a * (s[1] - s[0]) + s[0]
+
     def f(params):
-        switch_angles = params[:num]
-        finger_angles = params[num:-2]
-        switch_pos = params[-2:]
+        switch_angles = scale(params[:num], bs)
+        finger_angles = scale(params[num:-2], bf)
+        switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
         positions = get_switch_positions(switch_pos, switch_angles)
         r = 0
         for sp, sa, fa in zip(positions, params[:num], finger_angles):
@@ -103,32 +112,14 @@ def optimize_switches(hand_lengths, num):
 
         return r
 
-    bs = (-80, 80)
-    bf = (0, 80)
-    bx = (hand_lengths[0] - hand_lengths[3], np.sum(hand_lengths) + switch_size)
-    by = (-np.sum(hand_lengths[1:]), hand_lengths[0])
-
-    initial_switch_angle = 0
-    initial_finger_angle = 0
-    initial_switch_pos = [hand_lengths[0], 0]
-
-    bounds = np.concatenate((
-        np.full((num, 2), bs),
-        np.full((num, 2), bf),
-        (bx,),
-        (by,)))
-
-    initial_values = np.concatenate((
-        np.full(num, initial_switch_angle),
-        np.full(num, initial_finger_angle),
-        (initial_switch_pos[0],),
-        (initial_switch_pos[1],)))
+    bounds = np.full((num*2 + 2, 2), (0.0, 1.0))
+    initial_values = np.full(num*2 + 2, 0.5)
 
     minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-10)
-    min_res = basinhopping(f, initial_values, niter=100, minimizer_kwargs=minimizer)
-    switch_angles = min_res.x[:num]
-    finger_angles = min_res.x[num:-2]
-    switch_pos = min_res.x[-2:]
+    min_res = basinhopping(f, initial_values, niter=100, minimizer_kwargs=minimizer, disp=True)
+    switch_angles = scale(min_res.x[:num], bs)
+    finger_angles = scale(min_res.x[num:-2], bf)
+    switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
     switch_positions = get_switch_positions(switch_pos, switch_angles)
 
     print(min_res)
