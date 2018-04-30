@@ -39,7 +39,7 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     palm_pos = positions[3] + palm_vec_norm * hand_lengths[0]
     final_angles = np.asarray((-palm_angle, np.degrees(proximal_palm_angle), finger_angle))
 
-    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(np.degrees(angles[0]))
+    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(palm_angle)
 
     return effort, final_angles
 
@@ -101,22 +101,23 @@ def optimize_switches(hand_lengths, num):
     def scale(a, s):
         return a * (s[1] - s[0]) + s[0]
 
+    lowest = 100000
+
     def f(params):
         switch_angles = scale(params[:num], bs)
         finger_angles = scale(params[num:-2], bf)
         switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
         positions = get_switch_positions(switch_pos, switch_angles)
         r = 0
-        for sp, sa, fa in zip(positions, params[:num], finger_angles):
+        for sp, sa, fa in zip(positions, switch_angles, finger_angles):
             r += calculate_finger(sp, sa, fa, hand_lengths)[0]
-
         return r
 
     bounds = np.full((num*2 + 2, 2), (0.0, 1.0))
     initial_values = np.full(num*2 + 2, 0.5)
 
     minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-10)
-    min_res = basinhopping(f, initial_values, niter=100, minimizer_kwargs=minimizer, disp=True)
+    min_res = basinhopping(f, initial_values, T=5, stepsize=0.1, interval=5, niter=1000, minimizer_kwargs=minimizer, disp=True)
     switch_angles = scale(min_res.x[:num], bs)
     finger_angles = scale(min_res.x[num:-2], bf)
     switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
@@ -124,12 +125,16 @@ def optimize_switches(hand_lengths, num):
 
     print(min_res)
 
+    e = 0
     for sp, sa, fa in zip(switch_positions, switch_angles, finger_angles):
-        _, angles = calculate_finger(sp, sa, fa, hand_lengths)
+        effort, angles = calculate_finger(sp, sa, fa, hand_lengths)
+        e += effort
         final_angle = angles.tolist()
         print("Switch position:%s" % str(sp))
         print("Switch angle:%f" % sa)
+        print("Switch effort:%f" % effort)
         print("RESULT=%s;" % str(final_angle))
+    print("Total Effort: %f" % effort)
 
 
 
