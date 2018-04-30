@@ -61,11 +61,13 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
         palm_vec_norm = np.array((cos_angles[3], sin_angles[3]))
 
     palm_angle = np.degrees(pi*0.5-atan2(-palm_vec_norm[0], -palm_vec_norm[1]))
+    proximal_palm_angle = np.degrees(proximal_palm_angle)
 
     palm_pos = positions[3] + palm_vec_norm * hand_lengths[0]
-    final_angles = np.asarray((-palm_angle, np.degrees(proximal_palm_angle), finger_angle))
+    final_angles = np.asarray((-palm_angle, proximal_palm_angle, finger_angle))
 
-    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(palm_angle)
+    effort = np.sum(np.abs(palm_pos)) * 1000 + fabs(palm_angle) * 10 + fabs(proximal_palm_angle)
+    effort /= 1000.0
 
     return effort, final_angles
 
