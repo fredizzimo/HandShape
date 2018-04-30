@@ -53,9 +53,10 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     proximal_vec_norm = proximal_vec / hand_lengths[1]
     palm_vec_norm = palm_vec / np.linalg.norm(palm_vec)
 
-    proximal_palm_angle = acos(np.clip(-proximal_vec_norm.dot(palm_vec_norm), -1, 1)) - pi
+    proximal_palm_angle = acos(np.clip(-proximal_vec_norm.dot(palm_vec_norm), -1, 1))
 
-    if proximal_palm_angle < 0:
+    #Don't allow backwards angles
+    if proximal_vec_norm[1] > palm_vec_norm[1]:
         proximal_palm_angle = 0
         palm_vec_norm = np.array((cos_angles[3], sin_angles[3]))
 
