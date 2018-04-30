@@ -7,6 +7,28 @@ from math import fabs, acos, atan2, pi
 switch_size = 19.05
 switch_finger_angle = 20
 
+class TakeStep(object):
+    def __init__(self, stepsize, num_iterations, random_state):
+        self._initial_stepsize = stepsize
+        self._num_iterations = num_iterations
+        self._stepsize = stepsize
+        self._random_state = random_state
+        self._nstep = 0
+
+    def __call__(self, x):
+        self._nstep += 1
+        stepsize = self._initial_stepsize / self._num_iterations
+        if self._stepsize - stepsize > stepsize:
+            self._stepsize -= stepsize
+        if self._nstep % 5 == 0:
+            print("Current stepsize %f" %self._stepsize)
+        x += self._random_state.uniform(-self._stepsize, self._stepsize, np.shape(x))
+        return x
+
+    def report(self, accept, **kwargs):
+        if accept:
+            self._stepsize = self._initial_stepsize
+
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, switch_angle))
@@ -101,8 +123,6 @@ def optimize_switches(hand_lengths, num):
     def scale(a, s):
         return a * (s[1] - s[0]) + s[0]
 
-    lowest = 100000
-
     def f(params):
         switch_angles = scale(params[:num], bs)
         finger_angles = scale(params[num:-2], bf)
@@ -116,8 +136,21 @@ def optimize_switches(hand_lengths, num):
     bounds = np.full((num*2 + 2, 2), (0.0, 1.0))
     initial_values = np.full(num*2 + 2, 0.5)
 
-    minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-10)
-    min_res = basinhopping(f, initial_values, T=5, stepsize=0.1, interval=5, niter=1000, minimizer_kwargs=minimizer, disp=True)
+    rnd = np.random.RandomState()
+
+    min_res = None
+    num_iterations = 1
+    for _ in range(num_iterations):
+        iter_success = 100
+        take_step = TakeStep(0.5, iter_success, rnd)
+        minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-10)
+        res = basinhopping(
+            f, initial_values, T=0.0000000001, take_step=take_step, niter=1000, niter_success=iter_success,
+            minimizer_kwargs=minimizer, seed=rnd, disp=True)
+        if min_res is None or res.fun < min_res.fun:
+            print("New global minimum")
+            print(res)
+            min_res = res
     switch_angles = scale(min_res.x[:num], bs)
     finger_angles = scale(min_res.x[num:-2], bf)
     switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
