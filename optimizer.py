@@ -146,9 +146,9 @@ def optimize_switches(hand_lengths, num):
     for _ in range(num_iterations):
         iter_success = 100
         take_step = TakeStep(0.5, iter_success, rnd)
-        minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-9)
+        minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9)
         res = basinhopping(
-            f, initial_values, T=0.0000000001, take_step=take_step, niter=1000, niter_success=iter_success,
+            f, initial_values, T=0.0000000001, take_step=take_step, niter=10000, niter_success=iter_success,
             minimizer_kwargs=minimizer, seed=rnd, disp=True)
         if min_res is None or res.fun < min_res.fun:
             print("New global minimum")
