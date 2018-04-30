@@ -14,6 +14,7 @@ class TakeStep(object):
         self._stepsize = stepsize
         self._random_state = random_state
         self._nstep = 0
+        self._accepted_stepsizes = []
 
     def __call__(self, x):
         self._nstep += 1
@@ -25,8 +26,10 @@ class TakeStep(object):
         x += self._random_state.uniform(-self._stepsize, self._stepsize, np.shape(x))
         return x
 
-    def report(self, accept, **kwargs):
+    def report(self, accept, f_new, x_new, f_old, x_old):
         if accept:
+            self._accepted_stepsizes.append(self._stepsize)
+            self._initial_stepsize = np.average(self._accepted_stepsizes[-3:])
             self._stepsize = self._initial_stepsize
 
 
@@ -139,11 +142,11 @@ def optimize_switches(hand_lengths, num):
     rnd = np.random.RandomState()
 
     min_res = None
-    num_iterations = 1
+    num_iterations = 2
     for _ in range(num_iterations):
         iter_success = 100
         take_step = TakeStep(0.5, iter_success, rnd)
-        minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-10)
+        minimizer = dict(method="L-BFGS-B", bounds=bounds, tol=1e-9)
         res = basinhopping(
             f, initial_values, T=0.0000000001, take_step=take_step, niter=1000, niter_success=iter_success,
             minimizer_kwargs=minimizer, seed=rnd, disp=True)
