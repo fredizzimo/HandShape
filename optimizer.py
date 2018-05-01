@@ -4,7 +4,7 @@ from math import fabs, acos, atan2, pi
 import re
 import ast
 import itertools
-    
+import argparse
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -121,7 +121,7 @@ def get_switch_positions(switch_pos, angles):
     return mid_positions
 
 
-def optimize_switches(hand_lengths, num):
+def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100):
     bs = (-80, 80)
     bf = (0, 80)
     bx = (hand_lengths[0] - hand_lengths[3], np.sum(hand_lengths) + switch_size)
@@ -132,8 +132,8 @@ def optimize_switches(hand_lengths, num):
         return a * (s[1] - s[0]) + s[0]
 
     def f(params):
-        switch_angles = scale(params[:num], bs)
-        finger_angles = scale(params[num:-2], bf)
+        switch_angles = scale(params[:num_switches], bs)
+        finger_angles = scale(params[num_switches:-2], bf)
         switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
         positions = get_switch_positions(switch_pos, switch_angles)
         r = 0
@@ -141,15 +141,13 @@ def optimize_switches(hand_lengths, num):
             r += calculate_finger(sp, sa, fa, hand_lengths)[0]
         return r
 
-    bounds = np.full((num*2 + 2, 2), (0.0, 1.0))
-    initial_values = np.full(num*2 + 2, 0.5)
+    bounds = np.full((num_switches * 2 + 2, 2), (0.0, 1.0))
+    initial_values = np.full(num_switches * 2 + 2, 0.5)
 
     rnd = np.random.RandomState()
 
     min_res = None
-    num_iterations = 2
-    for _ in range(num_iterations):
-        iter_success = 100
+    for _ in range(num_passes):
         take_step = TakeStep(0.5, iter_success, rnd)
         minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9)
         res = basinhopping(
@@ -159,8 +157,8 @@ def optimize_switches(hand_lengths, num):
             print("New global minimum")
             print(res)
             min_res = res
-    switch_angles = scale(min_res.x[:num], bs)
-    finger_angles = scale(min_res.x[num:-2], bf)
+    switch_angles = scale(min_res.x[:num_switches], bs)
+    finger_angles = scale(min_res.x[num_switches:-2], bf)
     switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
     switch_positions = get_switch_positions(switch_pos, switch_angles)
 
@@ -194,19 +192,36 @@ def evaluate_openscad_variables(filename, variables):
 
 
 def main():
-    finger_names = ["PINKY", "RING", "MIDDLE", "INDEX"]
+    parser = argparse.ArgumentParser(description="Optimize HandShape keyboard switch placement")
+    parser.add_argument(
+        "--npasses",
+        default=2,
+        type=int,
+        help="Number of optimization passes")
+    parser.add_argument(
+        "--niter",
+        default=100,
+        type=int,
+        help="Consider the result optimal when it has been stable for this many iterations")
+    parser.add_argument(
+        "--fingers",
+        nargs="*",
+        default=["PINKY", "RING", "MIDDLE", "INDEX"],
+        help="The fingers to optimize (a list of [PINKY, RING, MIDDLLE, and/or INDEX)")
+    args = parser.parse_args()
+
+    finger_names = args.fingers
     variables = evaluate_openscad_variables(
         "hand.scad",
         list(itertools.chain.from_iterable(((v + "_FINGER", v + "_POS") for v in finger_names))))
     print(variables)
 
-    for finger_name in ["INDEX"]:
-    #for f in finger_names:
+    for finger_name in finger_names:
         print("Calculating %s" % finger_name)
         finger_dimensions = np.array(variables["%s_FINGER" % finger_name])
         finger_pos = np.array(variables["%s_POS" % finger_name])
         lengths = np.concatenate((finger_pos[0:1], finger_dimensions[:,0]))
-        optimize_switches( lengths, 3)
+        optimize_switches( lengths, 3, args.npasses, args.niter)
 
 
 if __name__ == "__main__":
