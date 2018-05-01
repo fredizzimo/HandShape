@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import basinhopping
 from math import fabs, acos, atan2, pi
+from collections import namedtuple
 import re
 import ast
 import itertools
@@ -33,6 +34,20 @@ class TakeStep(object):
             self._accepted_stepsizes.append(self._stepsize)
             self._initial_stepsize = np.average(self._accepted_stepsizes[-3:])
             self._stepsize = self._initial_stepsize
+
+OptimizationResultSwitch = namedtuple(
+    "OptimizationResultSwitch",
+    [
+        "switch_position",
+        "switch_angle",
+        "effort",
+        "finger_angles"])
+
+OptimizationResult = namedtuple(
+    "OptimizationResult",
+    [
+        "switches",
+        "total_effort"])
 
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
@@ -164,16 +179,14 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
 
     print(min_res)
 
-    e = 0
+    total_effort = 0
+    switches = []
     for sp, sa, fa in zip(switch_positions, switch_angles, finger_angles):
         effort, angles = calculate_finger(sp, sa, fa, hand_lengths)
-        e += effort
-        final_angle = angles.tolist()
-        print("Switch position:%s" % str(sp))
-        print("Switch angle:%f" % sa)
-        print("Switch effort:%f" % effort)
-        print("RESULT=%s;" % str(final_angle))
-    print("Total Effort: %f" % effort)
+        switches.append(OptimizationResultSwitch(sp, sa, effort, angles))
+        total_effort += effort
+
+    return OptimizationResult(switches, total_effort)
 
 
 def evaluate_openscad_variables(filename, variables):
@@ -189,6 +202,15 @@ def evaluate_openscad_variables(filename, variables):
         if v not in output:
             raise Exception("Variable %s not defined in %s" % (v, filename))
     return output
+
+
+def print_result(result):
+    for switch in result.switches:
+        print("Switch position:%s" % switch.switch_position)
+        print("Switch angle:%f" % switch.switch_angle)
+        print("Switch effort:%f" % switch.effort)
+        print("RESULT=%s;" % switch.finger_angles)
+    print("Total Effort: %f" % result.total_effort)
 
 
 def main():
@@ -221,7 +243,8 @@ def main():
         finger_dimensions = np.array(variables["%s_FINGER" % finger_name])
         finger_pos = np.array(variables["%s_POS" % finger_name])
         lengths = np.concatenate((finger_pos[0:1], finger_dimensions[:,0]))
-        optimize_switches( lengths, 3, args.npasses, args.niter)
+        result = optimize_switches(lengths, 3, args.npasses, args.niter)
+        print_result(result)
 
 
 if __name__ == "__main__":
