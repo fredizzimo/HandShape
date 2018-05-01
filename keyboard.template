@@ -1,9 +1,14 @@
 use <hand.scad>;
+use <keyboard_parts.scad>
 
 PINKY_ANGLES = [{{hand.pinky.angle[0]}}, {{hand.pinky.angle[1]}}, {{hand.pinky.angle[2]}}];
 RING_ANGLES = [{{hand.ring.angle[0]}}, {{hand.ring.angle[1]}}, {{hand.ring.angle[2]}}];
 MIDDLE_ANGLES = [{{hand.middle.angle[0]}}, {{hand.middle.angle[1]}}, {{hand.middle.angle[2]}}];
 INDEX_ANGLES = [{{hand.index.angle[0]}}, {{hand.index.angle[1]}}, {{hand.index.angle[2]}}];
 
+KEYS = {{keys}};
+
 color("BurlyWood");
 Hand({{hand.palm_angle}}, 0, PINKY_ANGLES, RING_ANGLES, MIDDLE_ANGLES, INDEX_ANGLES);
+
+KeyRow(KEYS);

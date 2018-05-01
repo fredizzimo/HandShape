@@ -9,6 +9,7 @@ import argparse
 import pickle
 import contextlib
 import jinja2
+import json
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -311,11 +312,13 @@ def main():
         }
     }
 
-    hand["index"]["angle"] = get_finger_angles(r.switches[1])
+    hand["index"]["angle"] = get_finger_angles(r.switches[2])
+
+    keys = [[s.switch_position[0], -s.switch_position[1], s.switch_angle] for s in r.switches]
 
     with open("keyboard.scad", "w") as output_file:
         output_file.write(template.render(
-            hand=hand
+            hand=hand, keys=json.dumps(keys)
         ))
 
 
