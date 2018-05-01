@@ -6,9 +6,22 @@ import re
 import ast
 import itertools
 import argparse
+import pickle
+import contextlib
 
 switch_size = 19.05
 switch_finger_angle = 20
+
+
+@contextlib.contextmanager
+def printoptions(*args, **kwargs):
+    original = np.get_printoptions()
+    np.set_printoptions(*args, **kwargs)
+    try:
+        yield
+    finally:
+        np.set_printoptions(**original)
+
 
 class TakeStep(object):
     def __init__(self, stepsize, num_iterations, random_state):
@@ -204,13 +217,20 @@ def evaluate_openscad_variables(filename, variables):
     return output
 
 
+def load_variables(finger_names):
+    return evaluate_openscad_variables(
+        "hand.scad",
+        list(itertools.chain.from_iterable(((v + "_FINGER", v + "_POS") for v in finger_names))))
+
+
 def print_result(result):
-    for switch in result.switches:
-        print("Switch position:%s" % switch.switch_position)
-        print("Switch angle:%f" % switch.switch_angle)
-        print("Switch effort:%f" % switch.effort)
-        print("RESULT=%s;" % switch.finger_angles)
-    print("Total Effort: %f" % result.total_effort)
+    with printoptions(suppress=True, precision=3):
+        for switch in result.switches:
+            print("Switch position:%s" % switch.switch_position)
+            print("Switch angle:%f" % switch.switch_angle)
+            print("Switch effort:%f" % switch.effort)
+            print("RESULT=%s;" % switch.finger_angles)
+        print("Total Effort: %f" % result.total_effort)
 
 
 def main():
@@ -230,21 +250,40 @@ def main():
         nargs="*",
         default=["PINKY", "RING", "MIDDLE", "INDEX"],
         help="The fingers to optimize (a list of [PINKY, RING, MIDDLLE, and/or INDEX)")
+    parser.add_argument(
+        "--save",
+        type=argparse.FileType("wb"),
+        help="Save the optimization result to a file, can be loaded later to skip the optimization step")
+    parser.add_argument(
+        "--load",
+        type=argparse.FileType("rb"),
+        help="Load the optimization result from a file, this skips the optimization step")
     args = parser.parse_args()
 
-    finger_names = args.fingers
-    variables = evaluate_openscad_variables(
-        "hand.scad",
-        list(itertools.chain.from_iterable(((v + "_FINGER", v + "_POS") for v in finger_names))))
-    print(variables)
+    if args.load:
+        optimization_results = pickle.load(args.load)
+        finger_names = list(optimization_results.keys())
+        variables = load_variables(finger_names)
+    else:
+        finger_names = args.fingers
+        variables = load_variables(finger_names)
+
+        optimization_results = dict()
+
+        for finger_name in finger_names:
+            print("Calculating %s" % finger_name)
+            finger_dimensions = np.array(variables["%s_FINGER" % finger_name])
+            finger_pos = np.array(variables["%s_POS" % finger_name])
+            lengths = np.concatenate((finger_pos[0:1], finger_dimensions[:,0]))
+            result = optimize_switches(lengths, 3, args.npasses, args.niter)
+            optimization_results[finger_name] = result
+
+        if args.save:
+            pickle.dump(optimization_results, args.save)
 
     for finger_name in finger_names:
-        print("Calculating %s" % finger_name)
-        finger_dimensions = np.array(variables["%s_FINGER" % finger_name])
-        finger_pos = np.array(variables["%s_POS" % finger_name])
-        lengths = np.concatenate((finger_pos[0:1], finger_dimensions[:,0]))
-        result = optimize_switches(lengths, 3, args.npasses, args.niter)
-        print_result(result)
+        print("Result for %s" % finger_name)
+        print_result(optimization_results[finger_name])
 
 
 if __name__ == "__main__":
