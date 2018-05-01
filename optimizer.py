@@ -1,8 +1,10 @@
 import numpy as np
-import scipy as sp
-from scipy.spatial.distance import sqeuclidean
-from scipy.optimize import minimize, basinhopping
+from scipy.optimize import basinhopping
 from math import fabs, acos, atan2, pi
+import re
+import ast
+import itertools
+    
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -176,20 +178,35 @@ def optimize_switches(hand_lengths, num):
     print("Total Effort: %f" % effort)
 
 
+def evaluate_openscad_variables(filename, variables):
+    output = dict()
+    with open(filename) as f:
+        regexps = [re.compile(v + " *= *(.*);") for v in variables]
+        for l in f.readlines():
+            for r, v in zip(regexps, variables):
+                m = r.match(l)
+                if m:
+                    output[v] = ast.literal_eval(m.group(1))
+    for v in variables:
+        if v not in output:
+            raise Exception("Variable %s not defined in %s" % (v, filename))
+    return output
+
 
 def main():
-    hand_lengths = [105, 56, 34, 25]
-    switch_pos = (170, 0)
+    finger_names = ["PINKY", "RING", "MIDDLE", "INDEX"]
+    variables = evaluate_openscad_variables(
+        "hand.scad",
+        list(itertools.chain.from_iterable(((v + "_FINGER", v + "_POS") for v in finger_names))))
+    print(variables)
 
-    optimize_switches( hand_lengths, 3)
-
-    switch_pos = (179.40929736, 1.48011764)
-
-    switch_angle, finger_angle = optimize_switch(switch_pos, hand_lengths)
-    _, angles = calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths)
-    final_angle = angles.tolist()
-    print("Switch angle:%f" % switch_angle)
-    print("RESULT=%s;" % str(final_angle))
+    for finger_name in ["INDEX"]:
+    #for f in finger_names:
+        print("Calculating %s" % finger_name)
+        finger_dimensions = np.array(variables["%s_FINGER" % finger_name])
+        finger_pos = np.array(variables["%s_POS" % finger_name])
+        lengths = np.concatenate((finger_pos[0:1], finger_dimensions[:,0]))
+        optimize_switches( lengths, 3)
 
 
 if __name__ == "__main__":
