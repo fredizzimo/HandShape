@@ -8,6 +8,7 @@ import itertools
 import argparse
 import pickle
 import contextlib
+import jinja2
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -232,6 +233,8 @@ def print_result(result):
             print("RESULT=%s;" % switch.finger_angles)
         print("Total Effort: %f" % result.total_effort)
 
+def get_finger_angles(switch_result):
+    return [switch_result.finger_angles[1], switch_result.finger_angles[2], switch_result.finger_angles[2] * 2.0 / 3.0]
 
 def main():
     parser = argparse.ArgumentParser(description="Optimize HandShape keyboard switch placement")
@@ -284,6 +287,36 @@ def main():
     for finger_name in finger_names:
         print("Result for %s" % finger_name)
         print_result(optimization_results[finger_name])
+
+    current_finger = "INDEX"
+    r = optimization_results[current_finger]
+
+    template_loader = jinja2.FileSystemLoader(searchpath="./")
+    template_env = jinja2.Environment(loader=template_loader)
+    template = template_env.get_template("keyboard.template")
+
+    hand = {
+        "palm_angle": r.switches[0].finger_angles[0],
+        "pinky": {
+            "angle": np.full(3, 0),
+        },
+        "ring": {
+            "angle": np.full(3, 0),
+        },
+        "middle": {
+            "angle": np.full(3, 0),
+        },
+        "index": {
+            "angle": np.full(3, 0),
+        }
+    }
+
+    hand["index"]["angle"] = get_finger_angles(r.switches[1])
+
+    with open("keyboard.scad", "w") as output_file:
+        output_file.write(template.render(
+            hand=hand
+        ))
 
 
 if __name__ == "__main__":

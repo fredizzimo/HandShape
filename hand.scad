@@ -8,11 +8,6 @@ RING_POS = [91, -20, 0];
 MIDDLE_POS = [99, 0, 0];
 INDEX_POS = [105, 21.5, 0];
 
-PINKY_ANGLES = [10, 20, 2/3 * 20, -20];
-RING_ANGLES = [20, 30, 2/3 * 30, -10];
-MIDDLE_ANGLES = [30, 40, 2/3 * 40, 0];
-INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
-
 FINGER_BONE_POS = 2/3; // The vertical positions of the joints
 WRIST_BONE_POS = [2/3, 2/5]; // horisontal / vertical
 
@@ -122,30 +117,30 @@ module InterdigitalFold(sizes, angles, fold)
 	}
 }
 
-module Fingers()
+module Fingers(pinky_angles, ring_angles, middle_angles, index_angles)
 {
-	translate(PINKY_POS) Finger(PINKY_FINGER, PINKY_ANGLES);
-	translate(RING_POS) Finger(RING_FINGER, RING_ANGLES);
-	translate(MIDDLE_POS) Finger(MIDDLE_FINGER, MIDDLE_ANGLES);
-	translate(INDEX_POS) Finger(INDEX_FINGER, INDEX_ANGLES);
+	translate(PINKY_POS) Finger(PINKY_FINGER, pinky_angles);
+	translate(RING_POS) Finger(RING_FINGER, ring_angles);
+	translate(MIDDLE_POS) Finger(MIDDLE_FINGER, middle_angles);
+	translate(INDEX_POS) Finger(INDEX_FINGER, index_angles);
 }
 
-module InterdigitalFolds()
+module InterdigitalFolds(pinky_angles, ring_angles, middle_angles, index_angles)
 {
 	hull()
 	{
-		translate(PINKY_POS) InterdigitalFold(PINKY_FINGER, PINKY_ANGLES, PINKY_INTERDIGITAL_FOLD);
-		translate(RING_POS) InterdigitalFold(RING_FINGER, RING_ANGLES, PINKY_INTERDIGITAL_FOLD);
+		translate(PINKY_POS) InterdigitalFold(PINKY_FINGER, pinky_angles, PINKY_INTERDIGITAL_FOLD);
+		translate(RING_POS) InterdigitalFold(RING_FINGER, ring_angles, PINKY_INTERDIGITAL_FOLD);
 	}
 	hull()
 	{
-		translate(RING_POS) InterdigitalFold(RING_FINGER, RING_ANGLES, RING_INTERDIGITAL_FOLD);
-		translate(MIDDLE_POS) InterdigitalFold(MIDDLE_FINGER, MIDDLE_ANGLES, RING_INTERDIGITAL_FOLD);
+		translate(RING_POS) InterdigitalFold(RING_FINGER, ring_angles, RING_INTERDIGITAL_FOLD);
+		translate(MIDDLE_POS) InterdigitalFold(MIDDLE_FINGER, middle_angles, RING_INTERDIGITAL_FOLD);
 	}
 	hull()
 	{
-		translate(MIDDLE_POS) InterdigitalFold(MIDDLE_FINGER, MIDDLE_ANGLES, MIDDLE_INTERDIGITAL_FOLD);
-		translate(INDEX_POS) InterdigitalFold(INDEX_FINGER, INDEX_ANGLES, MIDDLE_INTERDIGITAL_FOLD);
+		translate(MIDDLE_POS) InterdigitalFold(MIDDLE_FINGER, middle_angles, MIDDLE_INTERDIGITAL_FOLD);
+		translate(INDEX_POS) InterdigitalFold(INDEX_FINGER, index_angles, MIDDLE_INTERDIGITAL_FOLD);
 	}
 }
 
@@ -234,11 +229,11 @@ module RotateWrist(extension, deviation)
 	children();
 }
 
-module Hand(extension, deviation)
+module Hand(extension, deviation, pinky_angles, ring_angles, middle_angles, index_angles)
 {
 	RotateWrist(extension, deviation)
 	{
-		Fingers();
+		Fingers(pinky_angles, ring_angles, middle_angles, index_angles);
 		hull()
 		{
 			InterdigitalFolds();
@@ -258,5 +253,10 @@ module Hand(extension, deviation)
 	Arm(ARM_LENGTH);
 }
 
+PINKY_ANGLES = [10, 20, 2/3 * 20, -20];
+RING_ANGLES = [20, 30, 2/3 * 30, -10];
+MIDDLE_ANGLES = [30, 40, 2/3 * 40, 0];
+INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
+
 color("BurlyWood");
-Hand(-30, -20);
+Hand(-30, -20, PINKY_ANGLES, RING_ANGLES, MIDDLE_ANGLES, INDEX_ANGLES);
