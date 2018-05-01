@@ -11,7 +11,7 @@ INDEX_POS = [105, 21.5, 0];
 PINKY_ANGLES = [10, 20, 2/3 * 20, -20];
 RING_ANGLES = [20, 30, 2/3 * 30, -10];
 MIDDLE_ANGLES = [30, 40, 2/3 * 40, 0];
-
+INDEX_ANGLES = [40, 50, 2/3 * 50, 20];
 
 FINGER_BONE_POS = 2/3; // The vertical positions of the joints
 WRIST_BONE_POS = [2/3, 2/5]; // horisontal / vertical
@@ -259,6 +259,4 @@ module Hand(extension, deviation)
 }
 
 color("BurlyWood");
-RESULT=[-9.28948405379906, 0.0, 31.226152588019843];
-Hand(RESULT[0], 0);
-INDEX_ANGLES = [RESULT[1], RESULT[2], 2.0/3.0 * RESULT[2], 0];
+Hand(-30, -20);
