@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import basinhopping
-from math import fabs, acos, atan2, pi, pow
+from math import fabs, atan2, pi, pow
 from collections import namedtuple
 import re
 import ast
@@ -10,6 +10,9 @@ import pickle
 import contextlib
 import jinja2
 import json
+from shapely.geometry import Polygon, LineString, MultiLineString, JOIN_STYLE
+from shapely.ops import linemerge, unary_union
+from matplotlib import pyplot
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -65,7 +68,35 @@ OptimizationResult = namedtuple(
         "total_effort"])
 
 
-def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
+def get_covering_area(points, depth, direction):
+    polygons = []
+    for a, b in zip(points[:-1], points[1:]):
+        ls1 = LineString((a, b))
+        ls2 = ls1.parallel_offset(depth, direction, join_style=JOIN_STYLE.bevel)
+        if direction == "left":
+            polygon = Polygon(np.concatenate((np.array(ls1), np.flipud(np.array(ls2)))))
+        else:
+            polygon = Polygon(np.concatenate((np.array(ls1), np.array(ls2))))
+        polygons.append(polygon)
+
+    try:
+        ret = polygons[0]
+        for p in polygons[1:]:
+            ret = ret.union(p)
+
+        return ret
+    except:
+        for p in polygons:
+            print(p.is_valid)
+            a = np.array(p.exterior)
+            pyplot.plot(a.T[0], a.T[1])
+        hi = polygons[0].union(polygons[1]).union(polygons[2])
+        pyplot.show()
+        unary_union(polygons)
+        pass
+
+
+def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbidden_area):
     angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, switch_angle))
     angles = angles
     angles = np.flipud(angles)
@@ -85,25 +116,70 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     proximal_vec_norm = proximal_vec / hand_lengths[1]
     palm_vec_norm = palm_vec / np.linalg.norm(palm_vec)
 
-    proximal_angle = np.degrees(pi*0.5-atan2(-proximal_vec_norm[0], -proximal_vec_norm[1]))
-    palm_angle = np.degrees(pi*0.5-atan2(-palm_vec_norm[0], -palm_vec_norm[1]))
+    proximal_angle = pi*0.5-atan2(-proximal_vec_norm[0], -proximal_vec_norm[1])
+    palm_angle = pi*0.5-atan2(-palm_vec_norm[0], -palm_vec_norm[1])
 
     proximal_palm_angle = palm_angle - proximal_angle
 
     palm_pos = positions[3] + palm_vec_norm * hand_lengths[0]
-    final_angles = np.asarray((-palm_angle, proximal_palm_angle, finger_angle))
+    final_angles_radians= np.asarray((-palm_angle, proximal_palm_angle, angles[-1], angles[-1] * 2.0 / 3.0))
+    final_angles = np.degrees(final_angles_radians)
 
-    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(palm_angle)
+
+    #TODO: this should come from the configuration
+    finger_width = 15
+    finger_area = get_covering_area(np.concatenate(((palm_pos,), np.flipud(positions[1:]))), finger_width, "left")
+    if False:
+
+        cum_final_angles = np.cumsum(final_angles_radians)
+        prependicular_angles = cum_final_angles + pi * 0.5
+
+        prependicular_cos_angles = np.cos(prependicular_angles)
+        prependicular_sin_angles = np.sin(prependicular_angles)
+
+        finger_width_vectors = np.array((prependicular_cos_angles * finger_width, prependicular_sin_angles * finger_width)).T
+
+        finger_bottom = LineString(np.concatenate(((palm_pos,), np.flipud(positions[1:]))))
+        finger_top = finger_bottom.parallel_offset(finger_width, "right", join_style=JOIN_STYLE.bevel)
+        if type(finger_top) is MultiLineString:
+            arrays = [np.array(l) for l in finger_top]
+            finger_top = np.concatenate(arrays)
+        points = np.concatenate((np.array(finger_bottom), np.array(finger_top)))
+        finger_area = Polygon(points)
+        #print(finger_area)
+
+
+
+
+
+        #points = np.concatenate((finger_bottom, np.flipud(finger_top)))
+        #finger_area = Polygon(points)
+        if not finger_area.is_valid:
+            print(finger_bottom)
+            print(finger_top)
+            print(finger_area)
+            pyplot.plot(np.array(finger_bottom).T[0], np.array(finger_bottom).T[1])
+            pyplot.show()
+            print("WTF")
+
+    try:
+        overlapping_area = finger_area.intersection(forbidden_area).area
+    except:
+        #This freakingly fails all the time
+        overlapping_area = 100
+
+    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(final_angles[0])
     if proximal_palm_angle < 0:
-        effort += pow(proximal_palm_angle, 2)
-    if proximal_angle > 90:
-        effort += pow(proximal_palm_angle - 90, 2)
+        effort += 100*pow(proximal_palm_angle, 2)
+    if proximal_angle > 0.5 * pi:
+        effort += 100*pow(proximal_palm_angle - 0.5 * pi, 2)
+    effort += overlapping_area
     effort /= 100.0
 
     return effort, final_angles
 
 
-def get_switch_positions(switch_pos, angles):
+def calculate_switches(switch_pos, angles):
     switch_angles = np.array(angles)
     switch_angles = np.radians(switch_angles)
     cos_angles = np.cos(switch_angles)
@@ -116,7 +192,47 @@ def get_switch_positions(switch_pos, angles):
     prev_positions = np.roll(positions, 1, axis=0)
     prev_positions[0] = switch_pos
     mid_positions = prev_positions + (positions - prev_positions) * 0.5
-    return mid_positions
+
+    if False:
+        switch_top = LineString(np.concatenate(((switch_pos,), positions)))
+        switch_bottom = switch_top.parallel_offset(25, "right", join_style=JOIN_STYLE.bevel)
+        if type(switch_bottom) is MultiLineString:
+            arrays = [np.array(l) for l in switch_bottom]
+            switch_bottom = np.concatenate(arrays)
+        elif switch_bottom.is_empty:
+            switch_bottom = switch_top.parallel_offset(5, "right", join_style=JOIN_STYLE.bevel)
+
+
+
+        #finger_bottom = LineString(np.concatenate(((palm_pos,), np.flipud(positions[1:]))))
+        #finger_top = finger_bottom.parallel_offset(finger_width, "right", join_style=JOIN_STYLE.bevel)
+        try:
+            points = np.concatenate((np.array(switch_top), np.array(switch_bottom)))
+        except:
+            a = np.array(switch_top).T
+            temp1 = switch_top.parallel_offset(25, "right", resolution=100, mitre_limit=0.1, join_style=JOIN_STYLE.bevel)
+            temp2 = switch_top.parallel_offset(25, "right", resolution=100, join_style=JOIN_STYLE.mitre)
+            temp3 = switch_top.parallel_offset(25, "right", resolution=100, join_style=JOIN_STYLE.round)
+            pyplot.plot(a[0], a[1])
+            #for l in switch_bottom:
+            #    a = np.array(l).T
+            #    pyplot.plot(a[0], a[1])
+            pyplot.show()
+            print("here")
+
+        forbidden_area = Polygon(points)
+
+    forbidden_area = get_covering_area(np.concatenate(((switch_pos,), positions)), 25, "right")
+
+    #prependicular_cos_angles = np.cos(switch_angles - 0.5*pi)
+    #prependicular_sin_angles = np.sin(switch_angles - 0.5*pi)
+
+    #switch_depth_vectors = np.array((prependicular_cos_angles * 25, prependicular_sin_angles * 25)).T
+    #switch_top = np.concatenate(((switch_pos,), positions))
+    #switch_bottom = np.concatenate(((switch_pos + switch_depth_vectors[0],), positions + switch_depth_vectors))
+
+    #forbidden_area = Polygon(np.concatenate((switch_top, np.flipud(switch_bottom))))
+    return mid_positions, forbidden_area
 
 
 def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100):
@@ -133,10 +249,10 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         switch_angles = scale(params[:num_switches], bs)
         finger_angles = scale(params[num_switches:-2], bf)
         switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
-        positions = get_switch_positions(switch_pos, switch_angles)
+        positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
         r = 0
         for sp, sa, fa in zip(positions, switch_angles, finger_angles):
-            r += calculate_finger(sp, sa, fa, hand_lengths)[0]
+            r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
         return r
 
     bounds = np.full((num_switches * 2 + 2, 2), (0.0, 1.0))
@@ -158,14 +274,14 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     switch_angles = scale(min_res.x[:num_switches], bs)
     finger_angles = scale(min_res.x[num_switches:-2], bf)
     switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
-    switch_positions = get_switch_positions(switch_pos, switch_angles)
+    switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
 
     print(min_res)
 
     total_effort = 0
     switches = []
     for sp, sa, fa in zip(switch_positions, switch_angles, finger_angles):
-        effort, angles = calculate_finger(sp, sa, fa, hand_lengths)
+        effort, angles = calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)
         switches.append(OptimizationResultSwitch(sp, sa, effort, angles))
         total_effort += effort
 
