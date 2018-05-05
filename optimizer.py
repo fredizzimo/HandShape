@@ -66,7 +66,7 @@ OptimizationResult = namedtuple(
 
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
-    angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, switch_angle))
+    angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, -switch_angle))
     angles = angles
     angles = np.flipud(angles)
     angles = np.radians(angles)
@@ -85,15 +85,10 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     proximal_vec_norm = proximal_vec / hand_lengths[1]
     palm_vec_norm = palm_vec / np.linalg.norm(palm_vec)
 
-    proximal_palm_angle = acos(np.clip(-proximal_vec_norm.dot(palm_vec_norm), -1, 1))
-
-    #Don't allow backwards angles
-    if proximal_vec_norm[1] > palm_vec_norm[1] or proximal_vec_norm[0] > palm_vec_norm[0]:
-        proximal_palm_angle = 0
-        palm_vec_norm = np.array((cos_angles[3], sin_angles[3]))
-
+    proximal_angle = np.degrees(pi*0.5-atan2(-proximal_vec_norm[0], -proximal_vec_norm[1]))
     palm_angle = np.degrees(pi*0.5-atan2(-palm_vec_norm[0], -palm_vec_norm[1]))
-    proximal_palm_angle = np.degrees(proximal_palm_angle)
+
+    proximal_palm_angle = palm_angle - proximal_angle
 
     palm_pos = positions[3] + palm_vec_norm * hand_lengths[0]
     final_angles = np.asarray((-palm_angle, proximal_palm_angle, finger_angle))
@@ -297,7 +292,6 @@ def main():
     finger_pos = np.array(variables["%s_POS" % current_finger])
     lengths = np.concatenate((finger_pos[0:1], finger_dimensions[:,0]))
 
-    calculate_finger(r.switches[0].switch_position, r.switches[0].switch_angle, r.switches[0].finger_angles[2], lengths)
     template_loader = jinja2.FileSystemLoader(searchpath="./")
     template_env = jinja2.Environment(loader=template_loader)
     template = template_env.get_template("keyboard.template")
@@ -318,9 +312,11 @@ def main():
         }
     }
 
+    temp = r.switches[1]
+    calculate_finger(temp.switch_position, temp.switch_angle, temp.finger_angles[2], lengths)
     hand["index"]["angle"] = get_finger_angles(r.switches[1])
 
-    keys = [[s.switch_position[0], -s.switch_position[1], -s.switch_angle] for s in r.switches]
+    keys = [[s.switch_position[0], s.switch_position[1], -s.switch_angle] for s in r.switches]
 
     with open("keyboard.scad", "w") as output_file:
         output_file.write(template.render(
