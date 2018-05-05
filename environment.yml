@@ -1,6 +1,11 @@
 name: handshape
+channels:
+- conda-forge
+- defaults
 dependencies:
   - python=3.6
   - numpy=1.13.1
   - scipy=0.19.1
   - jinja2=2.9.6
+- pip:
+  - pyclipper==1.1.0

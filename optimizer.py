@@ -10,7 +10,7 @@ import pickle
 import contextlib
 import jinja2
 import json
-from shapely.geometry import Polygon, LineString, JOIN_STYLE
+import pyclipper
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -69,18 +69,17 @@ OptimizationResult = namedtuple(
 def get_covering_area(points, depth, direction):
     polygons = []
     for a, b in zip(points[:-1], points[1:]):
-        ls1 = LineString((a, b))
-        ls2 = ls1.parallel_offset(depth, direction, join_style=JOIN_STYLE.bevel)
-        if direction == "left":
-            polygon = Polygon(np.concatenate((np.array(ls1), np.flipud(np.array(ls2)))))
+        dir = b - a
+        dir_norm = dir / np.linalg.norm(dir)
+        if direction:
+            dir_rot = np.array((-dir_norm[1], dir_norm[0]))
         else:
-            polygon = Polygon(np.concatenate((np.array(ls1), np.array(ls2))))
-        polygons.append(polygon)
-
-    ret = polygons[0]
-    for p in polygons[1:]:
-        ret = ret.union(p)
-    return ret
+            dir_rot = np.array((dir_norm[1], dir_norm[0]))
+        rot_vector = dir_rot * depth
+        ab = np.array((a, b))
+        polygon = np.concatenate((ab, np.flipud(ab)+ rot_vector))
+        polygons.append(pyclipper.scale_to_clipper(polygon))
+    return polygons
 
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbidden_area):
@@ -115,13 +114,16 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbi
 
     #TODO: this should come from the configuration
     finger_width = 15
-    finger_area = get_covering_area(np.concatenate(((palm_pos,), np.flipud(positions[1:]))), finger_width, "left")
+    finger_area = get_covering_area(np.concatenate(((palm_pos,), np.flipud(positions[1:]))), finger_width, True)
 
-    try:
-        overlapping_area = finger_area.intersection(forbidden_area).area
-    except:
-        #This freakingly fails all the time
-        overlapping_area = 100
+    clipper = pyclipper.Pyclipper()
+    clipper.AddPaths(finger_area, pyclipper.PT_SUBJECT, True)
+    clipper.AddPaths(forbidden_area, pyclipper.PT_CLIP, True)
+    res = clipper.Execute(pyclipper.CT_INTERSECTION, pyclipper.PFT_NONZERO, pyclipper.PFT_NONZERO)
+
+    overlapping_area = 0
+    for poly in res:
+        overlapping_area += pyclipper.Area(pyclipper.scale_from_clipper(poly))
 
     effort = np.sum(np.abs(palm_pos)) * 100 + fabs(final_angles[0])
     if proximal_palm_angle < 0:
@@ -148,7 +150,7 @@ def calculate_switches(switch_pos, angles):
     prev_positions[0] = switch_pos
     mid_positions = prev_positions + (positions - prev_positions) * 0.5
 
-    forbidden_area = get_covering_area(np.concatenate(((switch_pos,), positions)), 25, "right")
+    forbidden_area = get_covering_area(np.concatenate(((switch_pos,), positions)), 25, False)
 
     return mid_positions, forbidden_area
 
@@ -303,7 +305,7 @@ def main():
     template_env = jinja2.Environment(loader=template_loader)
     template = template_env.get_template("keyboard.template")
 
-    switch_to_press = r.switches[1]
+    switch_to_press = r.switches[2]
     hand = {
         "palm_angle": switch_to_press.finger_angles[0],
         "pinky": {
