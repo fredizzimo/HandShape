@@ -66,7 +66,7 @@ OptimizationResult = namedtuple(
 
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
-    angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, -switch_angle))
+    angles = np.asarray((finger_angle, finger_angle * 2.0 / 3.0, 180-switch_finger_angle, switch_angle))
     angles = angles
     angles = np.flipud(angles)
     angles = np.radians(angles)
@@ -301,8 +301,9 @@ def main():
     template_env = jinja2.Environment(loader=template_loader)
     template = template_env.get_template("keyboard.template")
 
+    switch_to_press = r.switches[1]
     hand = {
-        "palm_angle": r.switches[0].finger_angles[0],
+        "palm_angle": switch_to_press.finger_angles[0],
         "pinky": {
             "angle": np.full(3, 0),
         },
@@ -317,9 +318,8 @@ def main():
         }
     }
 
-    temp = r.switches[1]
-    calculate_finger(temp.switch_position, temp.switch_angle, temp.finger_angles[2], lengths)
-    hand["index"]["angle"] = get_finger_angles(r.switches[0])
+    calculate_finger(switch_to_press.switch_position, switch_to_press.switch_angle, switch_to_press.finger_angles[2], lengths)
+    hand["index"]["angle"] = get_finger_angles(switch_to_press)
 
     keys = [[s.switch_position[0], s.switch_position[1], -s.switch_angle] for s in r.switches]
 
