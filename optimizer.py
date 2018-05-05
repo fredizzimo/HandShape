@@ -10,9 +10,7 @@ import pickle
 import contextlib
 import jinja2
 import json
-from shapely.geometry import Polygon, LineString, MultiLineString, JOIN_STYLE
-from shapely.ops import linemerge, unary_union
-from matplotlib import pyplot
+from shapely.geometry import Polygon, LineString, JOIN_STYLE
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -79,21 +77,10 @@ def get_covering_area(points, depth, direction):
             polygon = Polygon(np.concatenate((np.array(ls1), np.array(ls2))))
         polygons.append(polygon)
 
-    try:
-        ret = polygons[0]
-        for p in polygons[1:]:
-            ret = ret.union(p)
-
-        return ret
-    except:
-        for p in polygons:
-            print(p.is_valid)
-            a = np.array(p.exterior)
-            pyplot.plot(a.T[0], a.T[1])
-        hi = polygons[0].union(polygons[1]).union(polygons[2])
-        pyplot.show()
-        unary_union(polygons)
-        pass
+    ret = polygons[0]
+    for p in polygons[1:]:
+        ret = ret.union(p)
+    return ret
 
 
 def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbidden_area):
@@ -129,38 +116,6 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbi
     #TODO: this should come from the configuration
     finger_width = 15
     finger_area = get_covering_area(np.concatenate(((palm_pos,), np.flipud(positions[1:]))), finger_width, "left")
-    if False:
-
-        cum_final_angles = np.cumsum(final_angles_radians)
-        prependicular_angles = cum_final_angles + pi * 0.5
-
-        prependicular_cos_angles = np.cos(prependicular_angles)
-        prependicular_sin_angles = np.sin(prependicular_angles)
-
-        finger_width_vectors = np.array((prependicular_cos_angles * finger_width, prependicular_sin_angles * finger_width)).T
-
-        finger_bottom = LineString(np.concatenate(((palm_pos,), np.flipud(positions[1:]))))
-        finger_top = finger_bottom.parallel_offset(finger_width, "right", join_style=JOIN_STYLE.bevel)
-        if type(finger_top) is MultiLineString:
-            arrays = [np.array(l) for l in finger_top]
-            finger_top = np.concatenate(arrays)
-        points = np.concatenate((np.array(finger_bottom), np.array(finger_top)))
-        finger_area = Polygon(points)
-        #print(finger_area)
-
-
-
-
-
-        #points = np.concatenate((finger_bottom, np.flipud(finger_top)))
-        #finger_area = Polygon(points)
-        if not finger_area.is_valid:
-            print(finger_bottom)
-            print(finger_top)
-            print(finger_area)
-            pyplot.plot(np.array(finger_bottom).T[0], np.array(finger_bottom).T[1])
-            pyplot.show()
-            print("WTF")
 
     try:
         overlapping_area = finger_area.intersection(forbidden_area).area
@@ -193,45 +148,8 @@ def calculate_switches(switch_pos, angles):
     prev_positions[0] = switch_pos
     mid_positions = prev_positions + (positions - prev_positions) * 0.5
 
-    if False:
-        switch_top = LineString(np.concatenate(((switch_pos,), positions)))
-        switch_bottom = switch_top.parallel_offset(25, "right", join_style=JOIN_STYLE.bevel)
-        if type(switch_bottom) is MultiLineString:
-            arrays = [np.array(l) for l in switch_bottom]
-            switch_bottom = np.concatenate(arrays)
-        elif switch_bottom.is_empty:
-            switch_bottom = switch_top.parallel_offset(5, "right", join_style=JOIN_STYLE.bevel)
-
-
-
-        #finger_bottom = LineString(np.concatenate(((palm_pos,), np.flipud(positions[1:]))))
-        #finger_top = finger_bottom.parallel_offset(finger_width, "right", join_style=JOIN_STYLE.bevel)
-        try:
-            points = np.concatenate((np.array(switch_top), np.array(switch_bottom)))
-        except:
-            a = np.array(switch_top).T
-            temp1 = switch_top.parallel_offset(25, "right", resolution=100, mitre_limit=0.1, join_style=JOIN_STYLE.bevel)
-            temp2 = switch_top.parallel_offset(25, "right", resolution=100, join_style=JOIN_STYLE.mitre)
-            temp3 = switch_top.parallel_offset(25, "right", resolution=100, join_style=JOIN_STYLE.round)
-            pyplot.plot(a[0], a[1])
-            #for l in switch_bottom:
-            #    a = np.array(l).T
-            #    pyplot.plot(a[0], a[1])
-            pyplot.show()
-            print("here")
-
-        forbidden_area = Polygon(points)
-
     forbidden_area = get_covering_area(np.concatenate(((switch_pos,), positions)), 25, "right")
 
-    #prependicular_cos_angles = np.cos(switch_angles - 0.5*pi)
-    #prependicular_sin_angles = np.sin(switch_angles - 0.5*pi)
-
-    #switch_depth_vectors = np.array((prependicular_cos_angles * 25, prependicular_sin_angles * 25)).T
-    #switch_top = np.concatenate(((switch_pos,), positions))
-    #switch_bottom = np.concatenate(((switch_pos + switch_depth_vectors[0],), positions + switch_depth_vectors))
-
-    #forbidden_area = Polygon(np.concatenate((switch_top, np.flipud(switch_bottom))))
     return mid_positions, forbidden_area
 
 
