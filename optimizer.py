@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import basinhopping
-from math import fabs, acos, atan2, pi
+from math import fabs, acos, atan2, pi, pow
 from collections import namedtuple
 import re
 import ast
@@ -93,8 +93,13 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
     palm_pos = positions[3] + palm_vec_norm * hand_lengths[0]
     final_angles = np.asarray((-palm_angle, proximal_palm_angle, finger_angle))
 
-    effort = np.sum(np.abs(palm_pos)) * 1000 + fabs(palm_angle) * 10 + fabs(proximal_palm_angle)
-    effort /= 1000.0
+    effort = np.sum(np.abs(palm_pos)) * 100 + fabs(palm_angle)
+    if proximal_palm_angle < 0:
+        effort += pow(proximal_palm_angle, 2)
+    if proximal_angle > 90:
+        effort += pow(proximal_palm_angle - 90, 2)
+    effort /= 100.0
+
 
     return effort, final_angles
 
@@ -314,7 +319,7 @@ def main():
 
     temp = r.switches[1]
     calculate_finger(temp.switch_position, temp.switch_angle, temp.finger_angles[2], lengths)
-    hand["index"]["angle"] = get_finger_angles(r.switches[1])
+    hand["index"]["angle"] = get_finger_angles(r.switches[0])
 
     keys = [[s.switch_position[0], s.switch_position[1], -s.switch_angle] for s in r.switches]
 
