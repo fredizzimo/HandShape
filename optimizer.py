@@ -100,39 +100,7 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths):
         effort += pow(proximal_palm_angle - 90, 2)
     effort /= 100.0
 
-
     return effort, final_angles
-
-
-def optimize_finger(switch_pos, switch_angle, hand_lengths):
-    def f(angle):
-        return calculate_finger(switch_pos, switch_angle, angle[0], hand_lengths)[0]
-
-    minimizer = dict(method="L-BFGS-B", bounds=((0, 80),), tol=1e-10)
-    min_res = basinhopping(f, 40, niter=10, minimizer_kwargs=minimizer)
-
-    return min_res.x[0]
-
-
-def optimize_switch_angle(switch_pos, hand_lengths):
-    def f(switch_angle):
-        finger_angle = optimize_finger(switch_pos, switch_angle[0], hand_lengths)
-        return calculate_finger(switch_pos, switch_angle[0], finger_angle, hand_lengths)[0]
-
-    minimizer = dict(method="L-BFGS-B", bounds=((-80, 80),), tol=1e-10)
-    min_res = basinhopping(f, 0, niter=10, minimizer_kwargs=minimizer)
-
-    return min_res.x[0]
-
-
-def optimize_switch(switch_pos, hand_lengths):
-    def f(angles):
-        return calculate_finger(switch_pos, angles[0], angles[1], hand_lengths)[0]
-
-    minimizer = dict(method="L-BFGS-B", bounds=((-80, 80), (0, 80)), tol=1e-10)
-    min_res = basinhopping(f, (0, 0), niter=10, minimizer_kwargs=minimizer)
-
-    return min_res.x[0], min_res.x[1]
 
 
 def get_switch_positions(switch_pos, angles):
@@ -318,7 +286,6 @@ def main():
         }
     }
 
-    calculate_finger(switch_to_press.switch_position, switch_to_press.switch_angle, switch_to_press.finger_angles[2], lengths)
     hand["index"]["angle"] = get_finger_angles(switch_to_press)
 
     keys = [[s.switch_position[0], s.switch_position[1], -s.switch_angle] for s in r.switches]
