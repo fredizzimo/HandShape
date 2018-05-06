@@ -11,6 +11,7 @@ import contextlib
 import jinja2
 import json
 import pyclipper
+import nlopt
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -170,7 +171,10 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     def scale(a, s):
         return a * (s[1] - s[0]) + s[0]
 
-    def f(params):
+    num_evals = 0
+    min_found = 10000
+
+    def f(params, grad):
         switch_angles = scale(params[:num_switches], bs)
         finger_angles = scale(params[num_switches:-2], bf)
         switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
@@ -178,28 +182,54 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         r = 0
         for sp, sa, fa in zip(positions, switch_angles, finger_angles):
             r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
+
+        if True:
+            nonlocal num_evals
+            nonlocal min_found
+
+            if r < min_found:
+                min_found = r
+                print("Evals %i, min %f" %(num_evals, min_found))
+
+            if num_evals % 10000 == 0:
+                print("Evals %i, min %f" %(num_evals, min_found))
+
+            num_evals += 1
+
         return r
 
-    bounds = np.full((num_switches * 2 + 2, 2), (0.0, 1.0))
-    initial_values = np.full(num_switches * 2 + 2, 0.5)
+    num_params = num_switches * 2 + 2
+    bounds = np.full((num_params, 2), (0.0, 1.0))
+    initial_values = np.full(num_params, 0.5)
 
     rnd = np.random.RandomState()
 
     min_res = None
-    for _ in range(num_passes):
-        take_step = TakeStep(0.5, iter_success, rnd)
-        minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9, options={"disp": True, "maxiter":200})
-        res = basinhopping(
-            f, initial_values, T=0.0000000001, take_step=take_step, niter=10000, niter_success=iter_success,
-            minimizer_kwargs=minimizer, seed=rnd, disp=True)
-        if min_res is None or res.fun < min_res.fun:
-            print("New global minimum")
-            print(res)
-            min_res = res
-    switch_angles = scale(min_res.x[:num_switches], bs)
-    finger_angles = scale(min_res.x[num_switches:-2], bf)
-    switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
-    switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
+    if False:
+        for _ in range(num_passes):
+            take_step = TakeStep(0.5, iter_success, rnd)
+            minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9, options={"disp": True, "maxiter":200})
+            res = basinhopping(
+                f, initial_values, T=0.0000000001, take_step=take_step, niter=10000, niter_success=iter_success,
+                minimizer_kwargs=minimizer, seed=rnd, disp=True)
+            if min_res is None or res.fun < min_res.fun:
+                print("New global minimum")
+                print(res)
+                min_res = res
+        switch_angles = scale(min_res.x[:num_switches], bs)
+        finger_angles = scale(min_res.x[num_switches:-2], bf)
+        switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
+        switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
+    else:
+        opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND_NOSCAL, num_params)
+        opt.set_min_objective(f)
+        opt.set_lower_bounds(bounds.T[0])
+        opt.set_upper_bounds(bounds.T[1])
+        opt.set_xtol_rel(1e-2)
+        #min 0.365250
+        min_res = opt.optimize(initial_values)
+        opt_val = opt.last_optimum_value()
+        result = opt.last_optimize_result()
 
     print(min_res)
 
