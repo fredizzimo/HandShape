@@ -12,6 +12,8 @@ import jinja2
 import json
 import pyclipper
 import nlopt
+import time
+import pygmo as pg
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -174,7 +176,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     num_evals = 0
     min_found = 10000
 
-    def f(params, grad):
+    def f(params):
         switch_angles = scale(params[:num_switches], bs)
         finger_angles = scale(params[num_switches:-2], bf)
         switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
@@ -183,7 +185,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         for sp, sa, fa in zip(positions, switch_angles, finger_angles):
             r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
 
-        if True:
+        if False:
             nonlocal num_evals
             nonlocal min_found
 
@@ -220,7 +222,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         finger_angles = scale(min_res.x[num_switches:-2], bf)
         switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
         switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
-    else:
+    elif False:
         opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND_NOSCAL, num_params)
         opt.set_min_objective(f)
         opt.set_lower_bounds(bounds.T[0])
@@ -230,8 +232,43 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         min_res = opt.optimize(initial_values)
         opt_val = opt.last_optimum_value()
         result = opt.last_optimize_result()
+    else:
+        class Problem:
+            def fitness(self, x):
+                return [f(x)]
 
-    print(min_res)
+            def get_bounds(self):
+                return (tuple(bounds.T[0]), tuple(bounds.T[1]))
+
+        prob = pg.problem(Problem())
+        #0.238735 around 100 000 evals
+        #0.328703
+        #algo = pg.algorithm(pg.de1220(gen=100000, xtol=1e-20, ftol=1e-20))
+        algo = pg.algorithm(pg.de1220(gen=100000))
+        algo.set_verbosity(1)
+        pop = pg.population(prob, size=100)
+        #isl = pg.island(algo = algo, prob = prob, size=20)
+        print(prob)
+        print(algo)
+        #print(isl)
+        print(pop)
+        pop = algo.evolve(pop)
+        print(pop)
+
+        x = pop.champion_x
+        switch_angles = scale(x[:num_switches], bs)
+        finger_angles = scale(x[num_switches:-2], bf)
+        switch_pos = np.array((scale(x[-2], bx), scale(x[-1], by)))
+        switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
+        if False:
+            isl.evolve(100000)
+            while isl.status == pg.evolve_status.busy:
+                print(isl.get_population().champion_f)
+                time.sleep(1)
+            isl.wait_check()
+            print(isl)
+
+    #print(min_res)
 
     total_effort = 0
     switches = []
