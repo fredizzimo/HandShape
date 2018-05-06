@@ -123,13 +123,18 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbi
 
     overlapping_area = 0
     for poly in res:
-        overlapping_area += pyclipper.Area(pyclipper.scale_from_clipper(poly))
+        #overlapping_area += pyclipper.Area(pyclipper.scale_from_clipper(poly))
+        overlapping_area+=1000
 
     effort = np.sum(np.abs(palm_pos)) * 100 + fabs(final_angles[0])
-    if proximal_palm_angle < 0:
-        effort += 100*pow(proximal_palm_angle, 2)
-    if proximal_angle > 0.5 * pi:
-        effort += 100*pow(proximal_palm_angle - 0.5 * pi, 2)
+    if final_angles[1] < 0:
+        effort += 10 * np.abs(final_angles[1])
+    elif final_angles[1] > 90:
+        effort += 10 * (final_angles[1] - 90)
+    else:
+        effort += final_angles[1] * 0.1
+
+    effort += final_angles[2] * 0.01
     effort += overlapping_area
     effort /= 100.0
 
@@ -183,7 +188,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     min_res = None
     for _ in range(num_passes):
         take_step = TakeStep(0.5, iter_success, rnd)
-        minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9)
+        minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9, options={"disp": True, "maxiter":200})
         res = basinhopping(
             f, initial_values, T=0.0000000001, take_step=take_step, niter=10000, niter_success=iter_success,
             minimizer_kwargs=minimizer, seed=rnd, disp=True)
@@ -305,7 +310,7 @@ def main():
     template_env = jinja2.Environment(loader=template_loader)
     template = template_env.get_template("keyboard.template")
 
-    switch_to_press = r.switches[2]
+    switch_to_press = r.switches[0]
     hand = {
         "palm_angle": switch_to_press.finger_angles[0],
         "pinky": {
