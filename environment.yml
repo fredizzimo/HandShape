@@ -7,7 +7,6 @@ dependencies:
   - numpy=1.13.1
   - scipy=0.19.1
   - jinja2=2.9.6
-  - nlopt=2.4.2
   - pygmo=2.7
   - pip:
     - pyclipper==1.1.0

@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.optimize import basinhopping
 from math import fabs, atan2, pi, pow
 from collections import namedtuple
 import re
@@ -11,7 +10,6 @@ import contextlib
 import jinja2
 import json
 import pyclipper
-import nlopt
 import time
 import pygmo as pg
 
@@ -114,7 +112,6 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbi
     final_angles_radians= np.asarray((-palm_angle, proximal_palm_angle, angles[-1], angles[-1] * 2.0 / 3.0))
     final_angles = np.degrees(final_angles_radians)
 
-
     #TODO: this should come from the configuration
     finger_width = 15
     finger_area = get_covering_area(np.concatenate(((palm_pos,), np.flipud(positions[1:]))), finger_width, True)
@@ -126,8 +123,7 @@ def calculate_finger(switch_pos, switch_angle, finger_angle, hand_lengths, forbi
 
     overlapping_area = 0
     for poly in res:
-        #overlapping_area += pyclipper.Area(pyclipper.scale_from_clipper(poly))
-        overlapping_area+=1000
+        overlapping_area += 1000
 
     effort = np.sum(np.abs(palm_pos)) * 100 + fabs(final_angles[0])
     if final_angles[1] < 0:
@@ -173,102 +169,38 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     def scale(a, s):
         return a * (s[1] - s[0]) + s[0]
 
-    num_evals = 0
-    min_found = 10000
+    class Problem:
+        def fitness(self, params):
+            switch_angles = scale(params[:num_switches], bs)
+            finger_angles = scale(params[num_switches:-2], bf)
+            switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
+            positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
+            r = 0
+            for sp, sa, fa in zip(positions, switch_angles, finger_angles):
+                r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
 
-    def f(params):
-        switch_angles = scale(params[:num_switches], bs)
-        finger_angles = scale(params[num_switches:-2], bf)
-        switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
-        positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
-        r = 0
-        for sp, sa, fa in zip(positions, switch_angles, finger_angles):
-            r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
+            return (r,)
 
-        if False:
-            nonlocal num_evals
-            nonlocal min_found
+        def get_bounds(self):
+            num_params = num_switches * 2 + 2
+            return (np.full(num_params, 0), np.full(num_params, 1))
 
-            if r < min_found:
-                min_found = r
-                print("Evals %i, min %f" %(num_evals, min_found))
+    prob = pg.problem(Problem())
+    #0.328703
+    algo = pg.algorithm(pg.de1220(gen=100000))
+    algo.set_verbosity(1)
+    pop = pg.population(prob, size=20)
+    print(prob)
+    print(algo)
+    print(pop)
+    pop = algo.evolve(pop)
+    print(pop)
 
-            if num_evals % 10000 == 0:
-                print("Evals %i, min %f" %(num_evals, min_found))
-
-            num_evals += 1
-
-        return r
-
-    num_params = num_switches * 2 + 2
-    bounds = np.full((num_params, 2), (0.0, 1.0))
-    initial_values = np.full(num_params, 0.5)
-
-    rnd = np.random.RandomState()
-
-    min_res = None
-    if False:
-        for _ in range(num_passes):
-            take_step = TakeStep(0.5, iter_success, rnd)
-            minimizer = dict(method="SLSQP", bounds=bounds, tol=1e-9, options={"disp": True, "maxiter":200})
-            res = basinhopping(
-                f, initial_values, T=0.0000000001, take_step=take_step, niter=10000, niter_success=iter_success,
-                minimizer_kwargs=minimizer, seed=rnd, disp=True)
-            if min_res is None or res.fun < min_res.fun:
-                print("New global minimum")
-                print(res)
-                min_res = res
-        switch_angles = scale(min_res.x[:num_switches], bs)
-        finger_angles = scale(min_res.x[num_switches:-2], bf)
-        switch_pos = np.array((scale(min_res.x[-2], bx), scale(min_res.x[-1], by)))
-        switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
-    elif False:
-        opt = nlopt.opt(nlopt.GN_DIRECT_L_RAND_NOSCAL, num_params)
-        opt.set_min_objective(f)
-        opt.set_lower_bounds(bounds.T[0])
-        opt.set_upper_bounds(bounds.T[1])
-        opt.set_xtol_rel(1e-2)
-        #min 0.365250
-        min_res = opt.optimize(initial_values)
-        opt_val = opt.last_optimum_value()
-        result = opt.last_optimize_result()
-    else:
-        class Problem:
-            def fitness(self, x):
-                return [f(x)]
-
-            def get_bounds(self):
-                return (tuple(bounds.T[0]), tuple(bounds.T[1]))
-
-        prob = pg.problem(Problem())
-        #0.238735 around 100 000 evals
-        #0.328703
-        #algo = pg.algorithm(pg.de1220(gen=100000, xtol=1e-20, ftol=1e-20))
-        algo = pg.algorithm(pg.de1220(gen=100000))
-        algo.set_verbosity(1)
-        pop = pg.population(prob, size=100)
-        #isl = pg.island(algo = algo, prob = prob, size=20)
-        print(prob)
-        print(algo)
-        #print(isl)
-        print(pop)
-        pop = algo.evolve(pop)
-        print(pop)
-
-        x = pop.champion_x
-        switch_angles = scale(x[:num_switches], bs)
-        finger_angles = scale(x[num_switches:-2], bf)
-        switch_pos = np.array((scale(x[-2], bx), scale(x[-1], by)))
-        switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
-        if False:
-            isl.evolve(100000)
-            while isl.status == pg.evolve_status.busy:
-                print(isl.get_population().champion_f)
-                time.sleep(1)
-            isl.wait_check()
-            print(isl)
-
-    #print(min_res)
+    x = pop.champion_x
+    switch_angles = scale(x[:num_switches], bs)
+    finger_angles = scale(x[num_switches:-2], bf)
+    switch_pos = np.array((scale(x[-2], bx), scale(x[-1], by)))
+    switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
 
     total_effort = 0
     switches = []
