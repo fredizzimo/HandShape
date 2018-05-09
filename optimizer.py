@@ -187,16 +187,55 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
 
     prob = pg.problem(Problem())
     #0.328703
-    algo = pg.algorithm(pg.de1220(gen=100000))
-    algo.set_verbosity(1)
-    pop = pg.population(prob, size=20)
+    #0.32865749
+    generation = 0
+    gen = 1000
+    algo = pg.algorithm(pg.de1220(gen=gen))
+    #pop = pg.population(prob, size=100)
+    archi = pg.archipelago(7, algo=algo, prob=prob, pop_size=100)
+    algo.set_verbosity(0)
     print(prob)
     print(algo)
-    print(pop)
-    pop = algo.evolve(pop)
-    print(pop)
+    #print(pop)
 
-    x = pop.champion_x
+    def get_archi_champion(archi):
+        f = np.array(archi.get_champions_f()).flatten()
+        s = np.argsort(f)
+        x = archi.get_champions_x()[s[0]]
+        f = archi.get_champions_f()[s[0]][0]
+        return x, f
+
+    for i in range(150):
+        archi.evolve()
+        archi.wait()
+        islands = list(archi)
+        best_x_f = []
+        for island in islands:
+            pop = island.get_population()
+            f = pop.champion_f
+            x = pop.champion_x
+            best_x_f.append((x, f))
+
+        generation += gen
+        print("Generation %i: %f" % (generation, get_archi_champion(archi)[1]))
+        print(np.array(best_x_f).T[1])
+
+        for index, island in enumerate(islands):
+            pop = island.get_population()
+            f = pop.get_f().flatten()
+            s = np.argsort(f)
+            pop.set_xf(int(s[-1]), best_x_f[index-1][0], best_x_f[index-1][1])
+            next_index = (index + 1) % len(islands)
+            pop.set_xf(int(s[-2]), best_x_f[next_index][0], best_x_f[next_index][1])
+            island.set_population(pop)
+
+    #archi.get_champions_f()
+    #pop = algo.evolve(pop)
+    #print(pop)
+
+    x = get_archi_champion(archi)[0]
+
+    #x = pop.champion_x
     switch_angles = scale(x[:num_switches], bs)
     finger_angles = scale(x[num_switches:-2], bf)
     switch_pos = np.array((scale(x[-2], bx), scale(x[-1], by)))
