@@ -259,7 +259,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
             pop = island.get_population()
             f = pop.get_f().flatten()
             s = np.argsort(f)
-            j = 0
+            j = 1
             for fx in best_x_f:
                 if fx[1] != pop.champion_f:
                     pop.set_xf(int(s[-j]), fx[0], fx[1])
@@ -270,8 +270,8 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         fevals = new_fevals - old_fevals
         print("Evaluations %s" % (fevals))
 
-        for i, f in enumerate(fevals):
-            if f < 3 * pop_size:
+        for i, num_evals in enumerate(fevals):
+            if num_evals < 3 * pop_size:
                 new_island = random.randrange(len(islands))
                 print("Stagnated island %i, replacing with %i" %(i, new_island))
                 pop = islands[i].get_population()

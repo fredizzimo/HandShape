@@ -9,6 +9,7 @@ module KeyRow(switches)
 		rotation = [0, switch[2], 0];
 		translate(pos)
 		rotate(rotation)
+		translate([0, 0, -9])
 		Switch();
 	}
 }

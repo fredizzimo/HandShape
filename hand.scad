@@ -1,15 +1,15 @@
 PINKY_FINGER = [[45, 13, 12],[27, 12, 9], [23, 13, 8.5]];
 RING_FINGER = [[58, 15, 16],[36.5, 14, 11], [27.5, 13.5, 9.5]];
 MIDDLE_FINGER = [[62, 16, 17],[38.3, 15, 14], [26.5, 13.5, 11]];
-INDEX_FINGER = [[56, 18, 16],[34, 15, 13.5], [25, 13.5, 10.5]];
+INDEX_FINGER = [[56, 18, 1],[34, 15, 1], [25, 13.5, 1]];
 
 PINKY_POS = [77, -38.5, 0];
 RING_POS = [91, -20, 0];
 MIDDLE_POS = [99, 0, 0];
 INDEX_POS = [105, 21.5, 0];
 
-FINGER_BONE_POS = 2/3; // The vertical positions of the joints
-WRIST_BONE_POS = [2/3, 2/5]; // horisontal / vertical
+FINGER_BONE_POS = 1; // The vertical positions of the joints
+WRIST_BONE_POS = [2/3, 1]; // horisontal / vertical
 
 PINKY_INTERDIGITAL_FOLD = 15;
 RING_INTERDIGITAL_FOLD = 20;
@@ -17,9 +17,9 @@ MIDDLE_INTERDIGITAL_FOLD = 23;
 
 WRIST_WIDTH = 58;
 PALM_LENGTH = 61;
-OUTSIDE_KNUCKLE_THICKNESS = 23;
-INSIDE_KNUCKLE_THICKNESS = 28;
-PALM_BASE_THICKNESS = 41;
+OUTSIDE_KNUCKLE_THICKNESS = 1;
+INSIDE_KNUCKLE_THICKNESS = 1;
+PALM_BASE_THICKNESS = 1;
 ARM_LENGTH = 50;
 
 
