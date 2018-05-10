@@ -193,18 +193,18 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     generation = 0
     ring = True
     if ring:
-        batch = 100
-        ring_update = 200 # in batches
+        batch = 50
+        ring_update = 1 # in batches
         gen = batch
     else:
         gen = 100000
     pop_size = 100
-    algo = pg.algorithm(pg.de1220(gen=gen))
-    print(prob)
-    print(algo)
     if ring:
-        archi = pg.archipelago(7, algo=algo, prob=prob, pop_size=pop_size)
-        algo.set_verbosity(0)
+        archi = pg.archipelago()
+        for variant in range(18):
+            algo = pg.algorithm(pg.sade(gen=batch, variant=variant+1, variant_adptv=2, memory=True))
+            archi.push_back(algo=algo, prob=prob, size=pop_size)
+
         #print(pop)
 
         def get_archi_champion(archi):
@@ -212,38 +212,133 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
             s = np.argsort(f)
             x = archi.get_champions_x()[s[0]]
             f = archi.get_champions_f()[s[0]][0]
-            return x, f
+            return x, f, s[0]
 
-        for i in range(150):
+        pg.mp_island.init_pool()
+        pg.mp_island.resize_pool(pg.mp_island.get_pool_size() - 1)
+
+        best = np.finfo(np.float64).max
+        num_stagnated = 0
+
+        for i in range(500):
             archi.evolve(ring_update)
-            while archi.status == pg.core._evolve_status.busy:
-                time.sleep(5)
-                x, f = get_archi_champion(archi)
-                print(f)
+            if False:
+                while archi.status == pg.core._evolve_status.busy:
+                    time.sleep(5)
+                    x, f = get_archi_champion(archi)
+                    print("%f: %s" % (f, np.array(archi.get_champions_f()).flatten()))
             archi.wait()
             islands = list(archi)
-            best_x_f = []
-            for island in islands:
-                pop = island.get_population()
-                f = pop.champion_f
-                x = pop.champion_x
-                best_x_f.append((x, f))
+            if False:
+                best_x_f = []
+                for island in islands:
+                    pop = island.get_population()
+                    f = pop.champion_f
+                    x = pop.champion_x
+                    best_x_f.append((x, f))
 
-            generation += gen
-            print("Generation %i: %f" % (generation, get_archi_champion(archi)[1]))
-            print(np.array(best_x_f).T[1])
+                generation += gen
+                x, f, i = get_archi_champion(archi)
+                if f < best:
+                    best = f
+                    num_stagnated = 0
+                else:
+                    num_stagnated += 1
+                    if num_stagnated > 5:
+                        break
+                print("Generation %i: %i:%f" % (generation, i, f))
+                print(np.array(best_x_f).T[1])
 
-            for index, island in enumerate(islands):
-                pop = island.get_population()
-                f = pop.get_f().flatten()
-                s = np.argsort(f)
-                pop.set_xf(int(s[-1]), best_x_f[index-1][0], best_x_f[index-1][1])
-                next_index = (index + 1) % len(islands)
-                pop.set_xf(int(s[-2]), best_x_f[next_index][0], best_x_f[next_index][1])
-                island.set_population(pop)
+                for index, island in enumerate(islands):
+                    pop = island.get_population()
+                    f = pop.get_f().flatten()
+                    s = np.argsort(f)
+                    pop.set_xf(int(s[-1]), best_x_f[index-1][0], best_x_f[index-1][1])
+                    next_index = (index + 1) % len(islands)
+                    pop.set_xf(int(s[-2]), best_x_f[next_index][0], best_x_f[next_index][1])
+                    island.set_population(pop)
+            else:
+                best_x_f = []
+                x = np.array(archi.get_champions_x())
+                f = np.array(archi.get_champions_f())
+                dt = np.dtype([("x", x.dtype, (x.shape[1],)), ("f", f.dtype, (f.shape[1],))])
+                all_x_f=np.empty(0, dtype=dt)
+                for island in islands:
+                    pop = island.get_population()
+                    f = pop.champion_f
+                    x = pop.champion_x
+                    best_x_f.append((x, f))
+                    f = pop.get_f()
+                    x = pop.get_x()
+                    a = np.empty(len(x), dtype=dt)
+                    a["x"]=x
+                    a["f"]=f
+                    all_x_f = np.concatenate((all_x_f, a))
+
+
+                generation += gen
+                x, f, i = get_archi_champion(archi)
+                if f < best:
+                    best = f
+                    num_stagnated = 0
+                else:
+                    num_stagnated += 1
+                    if num_stagnated > 5:
+                        break
+                print("Generation %i: variant %i: best %f" % (generation, i, f))
+                print(np.array(best_x_f).T[1])
+
+                _, i = np.unique(np.round(all_x_f["x"], 10), axis=0, return_index=True)
+                unique_x_f = np.empty(len(i), dtype=dt)
+                unique_x_f["x"] = all_x_f["x"][i]
+                unique_x_f["f"] = all_x_f["f"][i]
+                num_islands = len(best_x_f)
+
+                for i, island in enumerate(islands):
+                    pop = island.get_population()
+                    x = np.array(pop.get_x())
+                    f = np.array(pop.get_f())
+                    _, unique_pop = np.unique(np.round(x, 10), axis=0, return_index=True)
+                    unique_x = x[unique_pop]
+                    unique_f = f[unique_pop]
+                    s = np.argsort(unique_f.flatten())
+                    unique_x = unique_x[s]
+                    unique_f = unique_f[s]
+                    if len(unique_f) > pop_size - num_islands-1:
+                        unique_x = unique_x[:pop_size-(num_islands-1)]
+                        unique_f = unique_f[:pop_size-(num_islands-1)]
+                    for xf in best_x_f:
+                        if xf[1] != pop.champion_f:
+                            unique_x = np.concatenate((unique_x, (xf[0],)))
+                            unique_f = np.concatenate((unique_f, (xf[1],)))
+
+                    np.random.shuffle(unique_pop)
+                    unique_x = np.concatenate((unique_x, x[unique_pop][:pop_size - len(unique_x)]))
+                    unique_f = np.concatenate((unique_f, f[unique_pop][:pop_size - len(unique_x)]))
+
+                    for i, (x, f) in enumerate(zip(unique_x, unique_f)):
+                        pop.set_xf(i, x, f)
+
+                    island.set_population(pop)
+
+
+
+
+
+
+                    if False:
+                        f = pop.get_f().flatten()
+                        s = np.argsort(f)
+                        j = 0
+                        for fx in best_x_f:
+                            if f[1] != pop.champion_f:
+                                pop.set_xf(int(s[-j]), fx[0], fx[1])
+                                j = j + 1
+                        island.set_population(pop)
 
         x = get_archi_champion(archi)[0]
     else:
+        algo = pg.algorithm(pg.de1220(gen=gen))
         pop = pg.population(prob, size=pop_size)
         algo.set_verbosity(1)
         algo.evolve(pop)
