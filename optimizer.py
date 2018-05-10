@@ -12,6 +12,7 @@ import json
 import pyclipper
 import time
 import pygmo as pg
+import random
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -205,6 +206,8 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
             algo = pg.algorithm(pg.sade(gen=batch, variant=variant+1, variant_adptv=2, memory=True))
             archi.push_back(algo=algo, prob=prob, size=pop_size)
 
+        old_fevals = np.full(18, 0);
+
         #print(pop)
 
         def get_archi_champion(archi):
@@ -219,6 +222,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
 
         best = np.finfo(np.float64).max
         num_stagnated = 0
+
 
         for i in range(500):
             archi.evolve(ring_update)
@@ -285,7 +289,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
                     num_stagnated += 1
                     if num_stagnated > 5:
                         break
-                print("Generation %i: variant %i: best %f" % (generation, i, f))
+                print("Generation %i: variant %i: best %f, same for: %i" % (generation, i, f, num_stagnated))
                 print(np.array(best_x_f).T[1])
 
                 _, i = np.unique(np.round(all_x_f["x"], 10), axis=0, return_index=True)
@@ -294,39 +298,10 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
                 unique_x_f["f"] = all_x_f["f"][i]
                 num_islands = len(best_x_f)
 
+
                 for i, island in enumerate(islands):
-                    pop = island.get_population()
-                    x = np.array(pop.get_x())
-                    f = np.array(pop.get_f())
-                    _, unique_pop = np.unique(np.round(x, 10), axis=0, return_index=True)
-                    unique_x = x[unique_pop]
-                    unique_f = f[unique_pop]
-                    s = np.argsort(unique_f.flatten())
-                    unique_x = unique_x[s]
-                    unique_f = unique_f[s]
-                    if len(unique_f) > pop_size - num_islands-1:
-                        unique_x = unique_x[:pop_size-(num_islands-1)]
-                        unique_f = unique_f[:pop_size-(num_islands-1)]
-                    for xf in best_x_f:
-                        if xf[1] != pop.champion_f:
-                            unique_x = np.concatenate((unique_x, (xf[0],)))
-                            unique_f = np.concatenate((unique_f, (xf[1],)))
-
-                    np.random.shuffle(unique_pop)
-                    unique_x = np.concatenate((unique_x, x[unique_pop][:pop_size - len(unique_x)]))
-                    unique_f = np.concatenate((unique_f, f[unique_pop][:pop_size - len(unique_x)]))
-
-                    for i, (x, f) in enumerate(zip(unique_x, unique_f)):
-                        pop.set_xf(i, x, f)
-
-                    island.set_population(pop)
-
-
-
-
-
-
-                    if False:
+                    if True:
+                        pop = island.get_population()
                         f = pop.get_f().flatten()
                         s = np.argsort(f)
                         j = 0
@@ -335,6 +310,52 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
                                 pop.set_xf(int(s[-j]), fx[0], fx[1])
                                 j = j + 1
                         island.set_population(pop)
+
+                    else:
+                        pop = island.get_population()
+                        x = np.array(pop.get_x())
+                        f = np.array(pop.get_f())
+                        _, unique_pop = np.unique(np.round(x, 10), axis=0, return_index=True)
+                        unique_x = x[unique_pop]
+                        unique_f = f[unique_pop]
+                        s = np.argsort(unique_f.flatten())
+                        unique_x = unique_x[s]
+                        unique_f = unique_f[s]
+                        if len(unique_f) > pop_size - num_islands-1:
+                            unique_x = unique_x[:pop_size-(num_islands-1)]
+                            unique_f = unique_f[:pop_size-(num_islands-1)]
+                        for xf in best_x_f:
+                            if xf[1] != pop.champion_f:
+                                unique_x = np.concatenate((unique_x, (xf[0],)))
+                                unique_f = np.concatenate((unique_f, (xf[1],)))
+
+                        np.random.shuffle(unique_pop)
+                        unique_x = np.concatenate((unique_x, x[unique_pop][:pop_size - len(unique_x)]))
+                        unique_f = np.concatenate((unique_f, f[unique_pop][:pop_size - len(unique_x)]))
+
+                        for i, (x, f) in enumerate(zip(unique_x, unique_f)):
+                            pop.set_xf(i, x, f)
+
+                        island.set_population(pop)
+
+                new_fevals = np.array([i.get_population().problem.get_fevals() for i in islands])
+                print("Fevals %s" % (new_fevals))
+                fevals = new_fevals - old_fevals
+                print("Feval diff %s" % (fevals))
+
+                for i, f in enumerate(fevals):
+                    if f < 3 * pop_size:
+                        new_island = random.randrange(len(islands))
+                        print("Stagnated island %i, replacing with %i" %(i, new_island))
+                        pop = islands[i].get_population()
+                        new_pop = islands[new_island].get_population()
+                        xs = new_pop.get_x();
+                        fs = new_pop.get_f();
+                        for j, (x, f) in enumerate(zip(xs, fs)):
+                            pop.set_xf(j, x, f)
+                        islands[i].set_population(pop)
+
+                old_fevals = new_fevals
 
         x = get_archi_champion(archi)[0]
     else:
@@ -457,7 +478,7 @@ def main():
     template_env = jinja2.Environment(loader=template_loader)
     template = template_env.get_template("keyboard.template")
 
-    switch_to_press = r.switches[0]
+    switch_to_press = r.switches[2]
     hand = {
         "palm_angle": switch_to_press.finger_angles[0],
         "pinky": {
