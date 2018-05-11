@@ -194,14 +194,15 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     generation = 0
 
     batch = 50
-    pop_size = 100
+    pop_size = 20
 
     archi = pg.archipelago()
-    for variant in range(18):
-        algo = pg.algorithm(pg.sade(gen=batch, variant=variant+1, variant_adptv=2, memory=True))
+    num_islands = 18
+    for variant in range(num_islands):
+        algo = pg.algorithm(pg.sade(gen=batch, variant_adptv=2, memory=True))
         archi.push_back(algo=algo, prob=prob, size=pop_size)
 
-    old_fevals = np.full(18, 0);
+    old_fevals = np.full(num_islands, 0);
 
     def get_archi_champion(archi):
         f = np.array(archi.get_champions_f()).flatten()
@@ -242,8 +243,8 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         x, f, i = get_archi_champion(archi)
         if np.isclose(f, best, atol=1e-9, rtol=1e-20):
             num_stagnated += 1
-            if num_stagnated > 5:
-                break
+            #if num_stagnated > 20:
+            #    break
         else:
             best = f
             num_stagnated = 0
@@ -255,16 +256,44 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         unique_x_f["x"] = all_x_f["x"][i]
         unique_x_f["f"] = all_x_f["f"][i]
 
-        for i, island in enumerate(islands):
-            pop = island.get_population()
-            f = pop.get_f().flatten()
-            s = np.argsort(f)
-            j = 1
-            for fx in best_x_f:
-                if fx[1] != pop.champion_f:
-                    pop.set_xf(int(s[-j]), fx[0], fx[1])
-                    j = j + 1
-            island.set_population(pop)
+        if True:
+            for i, island in enumerate(islands):
+                if False:
+                    pop = island.get_population()
+                    f = pop.get_f().flatten()
+                    s = np.argsort(f)
+                    j = 1
+                    for fx in best_x_f:
+                        if fx[1] != pop.champion_f:
+                            pop.set_xf(int(s[-j]), fx[0], fx[1])
+                            j = j + 1
+                else:
+                    num_islands = len(islands)
+                    pop = island.get_population()
+                    x = np.array(pop.get_x())
+                    f = np.array(pop.get_f())
+                    _, unique_pop = np.unique(np.round(x, 10), axis=0, return_index=True)
+                    unique_x = x[unique_pop]
+                    unique_f = f[unique_pop]
+                    s = np.argsort(unique_f.flatten())
+                    unique_x = unique_x[s]
+                    unique_f = unique_f[s]
+                    if len(unique_f) > pop_size - num_islands - 1:
+                        unique_x = unique_x[:pop_size - (num_islands - 1)]
+                        unique_f = unique_f[:pop_size - (num_islands - 1)]
+                    for xf in best_x_f:
+                        if xf[1] != pop.champion_f:
+                            unique_x = np.concatenate((unique_x, (xf[0],)))
+                            unique_f = np.concatenate((unique_f, (xf[1],)))
+
+                    np.random.shuffle(unique_pop)
+                    unique_x = np.concatenate((unique_x, x[unique_pop][:pop_size - len(unique_x)]))
+                    unique_f = np.concatenate((unique_f, f[unique_pop][:pop_size - len(unique_x)]))
+
+                    for i, (x, f) in enumerate(zip(unique_x, unique_f)):
+                        pop.set_xf(i, x, f)
+
+                island.set_population(pop)
 
         new_fevals = np.array([i.get_population().problem.get_fevals() for i in islands])
         fevals = new_fevals - old_fevals
@@ -278,8 +307,10 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
                 new_pop = islands[new_island].get_population()
                 xs = new_pop.get_x();
                 fs = new_pop.get_f();
+                best_idx = pop.best_idx()
                 for j, (x, f) in enumerate(zip(xs, fs)):
-                    pop.set_xf(j, x, f)
+                    if j != best_idx:
+                        pop.set_xf(j, x, f)
                 islands[i].set_population(pop)
 
         old_fevals = new_fevals
