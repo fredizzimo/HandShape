@@ -8,7 +8,7 @@ class Shade:
         self.bounds = np.array(list(bounds), ndmin=2)
         self.num_dim = len(self.bounds)
         self.f = f
-        self.population_size = population_size
+        self.initial_population_size = population_size
         self.archive_size = archive_size
         self.memory_size = memory_size
         self.max_fevals = max_fevals
@@ -20,6 +20,7 @@ class Shade:
         memory_sf = np.full(self.memory_size, 0.5)
         memory_cr = np.full(self.memory_size, 0.5)
         generation = 0
+        self.population_size = self.initial_population_size
         self.population = np.random.random((self.population_size, self.num_dim))
         population_values = self.evaluate_population(self.population)
 
@@ -33,6 +34,18 @@ class Shade:
             best_index = sorted_population[0]
             if population_values[best_index] < self.best[0]:
                 self.best = population_values[best_index], self.scale(self.population[best_index])
+
+            new_population_size = \
+                round(((4 - self.initial_population_size) / self.max_fevals) * self.nevals + self.initial_population_size)
+
+            if new_population_size < self.population_size:
+                self.population = self.population[sorted_population][:new_population_size].copy()
+                population_values = population_values[sorted_population][:new_population_size].copy()
+                sorted_population = np.arange(new_population_size)
+                self.population_size = new_population_size
+                p_max = int(self.population_size * 0.2)
+
+            print("New population size:", new_population_size)
             print("Generation %i, evals %i, f: %f" % (generation, self.nevals, self.best[0]))
             if self.nevals >= self.max_fevals:
                 break
@@ -107,6 +120,7 @@ class Shade:
                 print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
 
 
+
             generation += 1
         return self.best
 
@@ -121,7 +135,10 @@ class Shade:
         return np.fromiter(iter, dtype=np.float64, count=self.num_dim)
 
     def currentToPBest1Bin(self, current, p_max, cross_rate, scaling_factor, sorted_population):
-        pbesti = np.random.randint(0, p_max)
+        if p_max > 0:
+            pbesti = np.random.randint(0, p_max)
+        else:
+            pbesti = 0
         pbesti = sorted_population[pbesti]
         r1 = current
         r2 = current
