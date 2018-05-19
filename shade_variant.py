@@ -24,6 +24,7 @@ class Shade:
         self.population_size = self.initial_population_size
         self.population = np.random.random((self.population_size, self.num_dim))
         population_values = self.evaluate_population(self.population)
+        self.covariance = np.cov(self.population, rowvar=False)
         self.archive_size = int(self.population_size * self.archive_rate)
 
         self.archive = np.empty((self.archive_size, self.num_dim))
@@ -49,6 +50,7 @@ class Shade:
                 if self.current_archive_size > self.archive_size:
                     self.current_archive_size = self.archive_size
                 p_max = int(self.population_size * self.p)
+                self.covariance = np.cov(self.population, rowvar=False)
 
             print("New population size:", new_population_size)
             print("Generation %i, evals %i, f: %f" % (generation, self.nevals, self.best[0]))
@@ -126,8 +128,6 @@ class Shade:
 
                 print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
 
-
-
             generation += 1
         return self.best
 
@@ -160,18 +160,42 @@ class Shade:
         else:
             r2_value = self.archive[r2 - self.population_size]
 
+        donor = np.fromiter((
+            self.population[current][i] + scaling_factor *
+            (self.population[pbesti][i] - self.population[current][i]) +
+            scaling_factor * (self.population[r1][i] - r2_value[i]) for i in range(self.num_dim)),
+            dtype=np.float64, count=self.num_dim)
+
+
+        # TODO make a real variable
+        cw = 0.3
+        self.covariance = (1 - cw) * self.covariance + cw * np.cov(self.population, rowvar=False)
+        v, w = np.linalg.eig(self.covariance)
+        b = np.asmatrix(w)
+        b_conjugate_transpose = b.H
+
+        def xover(p, v, B=None):
+            nonlocal ret
+            for i in range(self.num_dim):
+                if np.random.random() < cross_rate or i==random_variable:
+                    ret[i] = v[i]
+                else:
+                    ret[i] = p[i]
+
+            if B is not None:
+                ret = np.dot(B, ret).A1
+
+
+        if np.random.random() < 0.5:
+            xover(np.dot(b_conjugate_transpose, self.population[current]).A1, np.dot(b_conjugate_transpose, donor).A1, b)
+        else:
+            xover(self.population[current], donor)
 
         for i in range(self.num_dim):
-            if np.random.random() < cross_rate or i==random_variable:
-                ret[i] = self.population[current][i] + scaling_factor * \
-                            (self.population[pbesti][i] - self.population[current][i]) + scaling_factor * \
-                            (self.population[r1][i] - r2_value[i])
-            else:
-                ret[i] = self.population[current][i]
-
             # Fixup bounds
             if ret[i] < 0.0:
                 ret[i] = self.population[current][i] * 0.5
             elif ret[i] > 1.0:
                 ret[i] = (1.0 - self.population[current][i]) * 0.5
+
         return ret
