@@ -153,8 +153,6 @@ class Shade:
             r1 = np.random.randint(0, self.population_size)
         while r2 == current or r2 == r1:
             r2 = np.random.randint(0, self.population_size + self.current_archive_size)
-        random_variable = np.random.randint(0, self.num_dim)
-        ret = np.empty(self.num_dim)
         if r2 < self.population_size:
             r2_value = self.population[r2]
         else:
@@ -170,26 +168,24 @@ class Shade:
         # TODO make a real variable
         cw = 0.3
         self.covariance = (1 - cw) * self.covariance + cw * np.cov(self.population, rowvar=False)
-        v, w = np.linalg.eig(self.covariance)
-        b = np.asmatrix(w)
-        b_conjugate_transpose = b.H
+        _, b = np.linalg.eig(self.covariance)
+        b_conjugate_transpose = b.conj().T
 
-        def xover(p, v, B=None):
-            nonlocal ret
-            for i in range(self.num_dim):
-                if np.random.random() < cross_rate or i==random_variable:
-                    ret[i] = v[i]
-                else:
-                    ret[i] = p[i]
+        eig = np.random.random() < 0.5
 
-            if B is not None:
-                ret = np.dot(B, ret).A1
-
-
-        if np.random.random() < 0.5:
-            xover(np.dot(b_conjugate_transpose, self.population[current]).A1, np.dot(b_conjugate_transpose, donor).A1, b)
+        if eig:
+            p = np.dot(b_conjugate_transpose, self.population[current])
+            v = np.dot(b_conjugate_transpose, donor)
         else:
-            xover(self.population[current], donor)
+            p = self.population[current]
+            v = donor
+
+        random_variable = np.random.randint(0, self.num_dim)
+        xover = (v[i] if np.random.random() < cross_rate or i == random_variable else p[i] for i in range(self.num_dim))
+        ret = np.fromiter(xover, np.float64, count=self.num_dim)
+
+        if eig:
+            ret = np.dot(b, ret)
 
         for i in range(self.num_dim):
             # Fixup bounds
