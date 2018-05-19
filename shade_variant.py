@@ -20,6 +20,7 @@ class Shade:
         self.best = np.finfo(np.float64).max, np.empty(self.num_dim,)
         memory_sf = np.full(self.memory_size, 0.5)
         memory_cr = np.full(self.memory_size, 0.5)
+        memory_er = np.full(self.memory_size, 0.5)
         generation = 0
         self.population_size = self.initial_population_size
         self.population = np.random.random((self.population_size, self.num_dim))
@@ -28,7 +29,6 @@ class Shade:
         self.archive_size = int(self.population_size * self.archive_rate)
 
         self.archive = np.empty((self.archive_size, self.num_dim))
-        archive_values = np.empty(self.num_dim)
         self.current_archive_size = 0
         p_max = int(self.population_size * self.p)
         memory_pos = 0
@@ -59,6 +59,7 @@ class Shade:
             h_indices = np.random.randint(0, self.memory_size, self.population_size)
             mu_sf = memory_sf[h_indices]
             mu_cr = memory_cr[h_indices]
+            mu_er = memory_er[h_indices]
 
             def gaussian(mu):
                 if (mu != 0):
@@ -66,7 +67,7 @@ class Shade:
                 else:
                     return 0
             pop_cr = np.fromiter((gaussian(mu) for mu in mu_cr), dtype=np.float64, count=self.population_size)
-
+            pop_er = np.fromiter((gaussian(mu) for mu in mu_er), dtype=np.float64, count=self.population_size)
 
             def cauchy(mu):
                 ret = -0.1
@@ -79,7 +80,7 @@ class Shade:
             pop_sf = np.fromiter((cauchy(mu) for mu in mu_sf), dtype=np.float64, count=self.population_size)
 
             new_pop = np.fromiter(itertools.chain.from_iterable(
-                (self.currentToPBest1Bin(i, p_max, pop_cr[i], pop_sf[i], sorted_population)
+                (self.currentToPBest1Bin(i, p_max, pop_cr[i], pop_sf[i], pop_er[i], sorted_population)
                     for i in range(self.population_size))),
                 dtype=np.float64, count=self.population_size * self.num_dim)
             new_pop.shape = (self.population_size, self.num_dim)
@@ -99,7 +100,6 @@ class Shade:
                             archive_index = self.current_archive_size
                             self.current_archive_size += 1
                         self.archive[archive_index] = self.population[i]
-                        archive_values = population_values[i]
 
                         population_values[i] = new_pop_values[i]
                         success_indices.append(i)
@@ -108,6 +108,7 @@ class Shade:
             if len(success_indices):
                 success_sf = pop_sf[success_indices]
                 success_cr = pop_cr[success_indices]
+                success_er = pop_er[success_indices]
                 success_deltas = deltas[success_indices]
 
                 deltasum = np.sum(success_deltas)
@@ -121,12 +122,17 @@ class Shade:
                 if newcr != 0:
                     newcr /= np.sum(weights * success_cr)
 
+                newer = np.sum(weights * success_er * success_er)
+                if newer != 0:
+                    newer /= np.sum(weights * success_er)
+
                 memory_sf[memory_pos % self.memory_size] = newsf
+                memory_er[memory_pos % self.memory_size] = newer
                 if memory_cr[memory_pos % self.memory_size] != 0:
                     memory_cr[memory_pos % self.memory_size] = newcr
                 memory_pos += 1
 
-                print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
+                print("Parameter adaptation sf: %f, cr: %f, er: %f" % (newsf, newcr, newer))
 
             generation += 1
         return self.best
@@ -141,7 +147,7 @@ class Shade:
         iter = (args[i] * (self.bounds[i][1] - self.bounds[i][0]) + self.bounds[i][0] for i in range(self.num_dim))
         return np.fromiter(iter, dtype=np.float64, count=self.num_dim)
 
-    def currentToPBest1Bin(self, current, p_max, cross_rate, scaling_factor, sorted_population):
+    def currentToPBest1Bin(self, current, p_max, cross_rate, scaling_factor, eigen_ratio, sorted_population):
         if p_max > 0:
             pbesti = np.random.randint(0, p_max)
         else:
@@ -171,7 +177,7 @@ class Shade:
         _, b = np.linalg.eig(self.covariance)
         b_conjugate_transpose = b.conj().T
 
-        eig = np.random.random() < 0.5
+        eig = np.random.random() < eigen_ratio
 
         if eig:
             p = np.dot(b_conjugate_transpose, self.population[current])
