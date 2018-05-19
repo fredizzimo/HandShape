@@ -40,8 +40,13 @@ class Shade:
             mu_sf = memory_sf[h_indices]
             mu_cr = memory_cr[h_indices]
 
-            pop_cr = np.random.normal(mu_cr, 0.1, self.population_size)
-            pop_cr = np.clip(pop_cr, 0.0, 1.0)
+            def gaussian(mu):
+                if (mu != 0):
+                    return np.clip(np.random.normal(mu, 0.1), 0.0, 1.0)
+                else:
+                    return 0
+            pop_cr = np.fromiter((gaussian(mu) for mu in mu_cr), dtype=np.float64, count=self.population_size)
+
 
             def cauchy(mu):
                 ret = -0.1
@@ -85,11 +90,18 @@ class Shade:
 
                 deltasum = np.sum(success_deltas)
                 weights = success_deltas / deltasum
-                newsf = np.sum(weights * success_sf * success_sf) / np.sum(weights * success_sf)
-                newcr = np.sum(weights * success_cr)
+
+                newsf = np.sum(weights * success_sf * success_sf)
+                if newsf != 0:
+                    newsf /= np.sum(weights * success_sf)
+
+                newcr = np.sum(weights * success_cr * success_cr)
+                if newcr != 0:
+                    newcr /= np.sum(weights * success_cr)
 
                 memory_sf[memory_pos % self.memory_size] = newsf
-                memory_cr[memory_pos % self.memory_size] = newcr
+                if memory_cr[memory_pos % self.memory_size] != 0:
+                    memory_cr[memory_pos % self.memory_size] = newcr
                 memory_pos += 1
 
                 print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
