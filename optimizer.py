@@ -192,6 +192,7 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         p = 0.11,
         archive_rate=2.6,
         memory_size=6,
+        learning_rate=0.3
     )
     f, x = shade.optimize()
 

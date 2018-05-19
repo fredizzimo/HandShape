@@ -4,7 +4,7 @@ import scipy.stats as stats
 import itertools
 
 class Shade:
-    def __init__(self, f, bounds, max_fevals, population_size, p, archive_rate, memory_size):
+    def __init__(self, f, bounds, max_fevals, population_size, p, archive_rate, memory_size, learning_rate):
         self.bounds = np.array(list(bounds), ndmin=2)
         self.num_dim = len(self.bounds)
         self.f = f
@@ -13,6 +13,7 @@ class Shade:
         self.archive_rate = archive_rate
         self.memory_size = memory_size
         self.max_fevals = max_fevals
+        self.learning_rate = learning_rate
 
 
     def optimize(self):
@@ -171,8 +172,7 @@ class Shade:
             dtype=np.float64, count=self.num_dim)
 
 
-        # TODO make a real variable
-        cw = 0.3
+        cw = self.learning_rate * (1.0 - self.nevals / self.max_fevals)
         self.covariance = (1 - cw) * self.covariance + cw * np.cov(self.population, rowvar=False)
         _, b = np.linalg.eig(self.covariance)
         b_conjugate_transpose = b.conj().T
