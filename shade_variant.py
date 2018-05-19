@@ -4,12 +4,12 @@ import scipy.stats as stats
 import itertools
 
 class Shade:
-    def __init__(self, f, bounds, max_fevals, population_size, archive_size, memory_size):
+    def __init__(self, f, bounds, max_fevals, population_size, archive_rate, memory_size):
         self.bounds = np.array(list(bounds), ndmin=2)
         self.num_dim = len(self.bounds)
         self.f = f
         self.initial_population_size = population_size
-        self.archive_size = archive_size
+        self.archive_rate = archive_rate
         self.memory_size = memory_size
         self.max_fevals = max_fevals
 
@@ -23,6 +23,7 @@ class Shade:
         self.population_size = self.initial_population_size
         self.population = np.random.random((self.population_size, self.num_dim))
         population_values = self.evaluate_population(self.population)
+        self.archive_size = int(self.population_size * self.archive_rate)
 
         self.archive = np.empty((self.archive_size, self.num_dim))
         archive_values = np.empty(self.num_dim)
@@ -43,6 +44,9 @@ class Shade:
                 population_values = population_values[sorted_population][:new_population_size].copy()
                 sorted_population = np.arange(new_population_size)
                 self.population_size = new_population_size
+                self.archive_size = int(self.population_size * self.archive_rate)
+                if self.current_archive_size > self.archive_size:
+                    self.current_archive_size = self.archive_size
                 p_max = int(self.population_size * 0.2)
 
             print("New population size:", new_population_size)
