@@ -22,6 +22,10 @@ class Shade:
         generation = 0
         self.population = np.random.random((self.population_size, self.num_dim))
         population_values = self.evaluate_population(self.population)
+
+        self.archive = np.empty((self.archive_size, self.num_dim))
+        archive_values = np.empty(self.num_dim)
+        self.current_archive_size = 0
         p_max = int(self.population_size * 0.2)
         memory_pos = 0
         while True:
@@ -61,10 +65,18 @@ class Shade:
 
             for i in range(self.population_size):
                 if new_pop_values[i] <= population_values[i]:
-                    self.population[i] = new_pop[i]
                     if new_pop_values[i] < population_values[i]:
+                        if self.current_archive_size == self.archive_size:
+                            archive_index =np.random.randint(0, self.archive_size)
+                        else:
+                            archive_index = self.current_archive_size
+                            self.current_archive_size += 1
+                        self.archive[archive_index] = self.population[i]
+                        archive_values = population_values[i]
+
                         population_values[i] = new_pop_values[i]
                         success_indices.append(i)
+                    self.population[i] = new_pop[i]
 
             if len(success_indices):
                 success_sf = pop_sf[success_indices]
@@ -104,14 +116,20 @@ class Shade:
         while r1 == current:
             r1 = np.random.randint(0, self.population_size)
         while r2 == current or r2 == r1:
-            r2 = np.random.randint(0, self.population_size)
+            r2 = np.random.randint(0, self.population_size + self.current_archive_size)
         random_variable = np.random.randint(0, self.num_dim)
         ret = np.empty(self.num_dim)
+        if r2 < self.population_size:
+            r2_value = self.population[r2]
+        else:
+            r2_value = self.archive[r2 - self.population_size]
+
+
         for i in range(self.num_dim):
             if np.random.random() < cross_rate or i==random_variable:
                 ret[i] = self.population[current][i] + scaling_factor * \
                             (self.population[pbesti][i] - self.population[current][i]) + scaling_factor * \
-                            (self.population[r1][i] - self.population[r2][i]);
+                            (self.population[r1][i] - r2_value[i]);
             else:
                 ret[i] = self.population[current][i];
 
