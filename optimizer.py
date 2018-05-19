@@ -187,10 +187,10 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     shade = Shade(
         f=f,
         bounds=bounds,
-        max_fevals=5000,
+        max_fevals=100000,
         population_size=100,
         archive_size=100,
-        history_size=100,
+        memory_size=100,
     )
     f, x = shade.optimize()
 

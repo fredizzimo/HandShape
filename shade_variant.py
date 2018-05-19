@@ -4,25 +4,26 @@ import scipy.stats as stats
 import itertools
 
 class Shade:
-    def __init__(self, f, bounds, max_fevals, population_size, archive_size, history_size):
+    def __init__(self, f, bounds, max_fevals, population_size, archive_size, memory_size):
         self.bounds = np.array(list(bounds), ndmin=2)
         self.num_dim = len(self.bounds)
         self.f = f
         self.population_size = population_size
         self.archive_size = archive_size
-        self.history_size = history_size
+        self.memory_size = memory_size
         self.max_fevals = max_fevals
 
 
     def optimize(self):
         self.nevals = 0
         self.best = np.finfo(np.float64).max, np.empty(self.num_dim,)
-        memory_f = np.full(self.history_size, 0.5)
-        memory_cr = np.full(self.history_size, 0.5)
+        memory_sf = np.full(self.memory_size, 0.5)
+        memory_cr = np.full(self.memory_size, 0.5)
         generation = 0
         self.population = np.random.random((self.population_size, self.num_dim))
         population_values = self.evaluate_population(self.population)
         p_max = int(self.population_size * 0.2)
+        memory_pos = 0
         while True:
             sorted_population = np.argsort(population_values)
             best_index = sorted_population[0]
@@ -31,9 +32,9 @@ class Shade:
             print("Generation %i, evals %i, f: %f" % (generation, self.nevals, self.best[0]))
             if self.nevals >= self.max_fevals:
                 break
-            h_indices = np.random.randint(0, self.history_size, self.population_size)
-            mu_sf = memory_f[h_indices];
-            mu_cr = memory_cr[h_indices];
+            h_indices = np.random.randint(0, self.memory_size, self.population_size)
+            mu_sf = memory_sf[h_indices]
+            mu_cr = memory_cr[h_indices]
 
             pop_cr = np.random.normal(mu_cr, 0.1, self.population_size)
             pop_cr = np.clip(pop_cr, 0.0, 1.0)
@@ -54,10 +55,33 @@ class Shade:
 
             new_pop_values = self.evaluate_population(new_pop)
 
+            success_indices = []
+
+            deltas = new_pop_values - population_values
+
             for i in range(self.population_size):
                 if new_pop_values[i] <= population_values[i]:
                     self.population[i] = new_pop[i]
-                    population_values[i] = new_pop_values[i]
+                    if new_pop_values[i] < population_values[i]:
+                        population_values[i] = new_pop_values[i]
+                        success_indices.append(i)
+
+            if len(success_indices):
+                success_sf = pop_sf[success_indices]
+                success_cr = pop_cr[success_indices]
+                success_deltas = deltas[success_indices]
+
+                deltasum = np.sum(success_deltas)
+                weights = success_deltas / deltasum
+                newsf = np.sum(weights * success_sf * success_sf) / np.sum(weights * success_sf)
+                newcr = np.sum(weights * success_cr)
+
+                memory_sf[memory_pos % self.memory_size] = newsf
+                memory_cr[memory_pos % self.memory_size] = newcr
+                memory_pos += 1
+
+                print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
+
 
             generation += 1
         return self.best
