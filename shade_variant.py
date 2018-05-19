@@ -24,6 +24,10 @@ class Shade:
         population_values = self.evaluate_population(self.population)
         p_max = int(self.population_size * 0.2)
         while True:
+            sorted_population = np.argsort(population_values)
+            best_index = sorted_population[0]
+            if population_values[best_index] < self.best[0]:
+                self.best = population_values[best_index], self.scale(self.population[best_index])
             print("Generation %i, evals %i, f: %f" % (generation, self.nevals, self.best[0]))
             if self.nevals >= self.max_fevals:
                 break
@@ -43,7 +47,8 @@ class Shade:
             pop_sf = np.fromiter((cauchy(mu) for mu in mu_sf), dtype=np.float64, count=self.population_size)
 
             new_pop = np.fromiter(itertools.chain.from_iterable(
-                (self.currentToPBest1Bin(i, p_max, pop_cr[i], pop_sf[i]) for i in range(self.population_size))),
+                (self.currentToPBest1Bin(i, p_max, pop_cr[i], pop_sf[i], sorted_population)
+                    for i in range(self.population_size))),
                 dtype=np.float64, count=self.population_size * self.num_dim)
             new_pop.shape = (self.population_size, self.num_dim)
 
@@ -61,18 +66,15 @@ class Shade:
         iter = (self.f(self.scale(args)) for args in population)
         self.nevals += len(population)
         ret = np.fromiter(iter, dtype=np.float64, count=len(population))
-        best_index = np.argmin(ret)
-        if ret[best_index] < self.best[0]:
-            self.best = ret[best_index], self.scale(population[best_index])
         return ret
 
     def scale(self, args):
         iter = (args[i] * (self.bounds[i][1] - self.bounds[i][0]) + self.bounds[i][0] for i in range(self.num_dim))
         return np.fromiter(iter, dtype=np.float64, count=self.num_dim)
 
-    def currentToPBest1Bin(self, current, p_max, cross_rate, scaling_factor):
-        # Todo from the actual best
+    def currentToPBest1Bin(self, current, p_max, cross_rate, scaling_factor, sorted_population):
         pbesti = np.random.randint(0, p_max)
+        pbesti = sorted_population[pbesti]
         r1 = current
         r2 = current
         while r1 == current:
