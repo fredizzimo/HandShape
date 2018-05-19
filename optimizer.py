@@ -13,6 +13,7 @@ import pyclipper
 import time
 import pygmo as pg
 import random
+from shade_variant import Shade
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -165,161 +166,35 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
     bf = (0, 80)
     bx = (hand_lengths[0] - hand_lengths[3], np.sum(hand_lengths) + switch_size)
     by = (-np.sum(hand_lengths[1:]), hand_lengths[0])
-    bf = (0, 80)
 
-    def scale(a, s):
-        return a * (s[1] - s[0]) + s[0]
+    bounds = num_switches * [bs] + num_switches * [bf] + [bx] + [by]
 
-    class Problem:
-        def fitness(self, params):
-            switch_angles = scale(params[:num_switches], bs)
-            finger_angles = scale(params[num_switches:-2], bf)
-            switch_pos = np.array((scale(params[-2], bx), scale(params[-1], by)))
-            positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
-            r = 0
-            for sp, sa, fa in zip(positions, switch_angles, finger_angles):
-                r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
+    def f(params):
+        switch_angles = params[:num_switches]
+        finger_angles = params[num_switches:-2]
+        switch_pos = np.array((params[-2], params[-1]))
+        positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
+        r = 0
+        for sp, sa, fa in zip(positions, switch_angles, finger_angles):
+            r += calculate_finger(sp, sa, fa, hand_lengths, forbidden_area)[0]
 
-            return (r,)
+        return r
 
-        def get_bounds(self):
-            num_params = num_switches * 2 + 2
-            return (np.full(num_params, 0), np.full(num_params, 1))
-
-    prob = pg.problem(Problem())
     #0.328703
     #0.32865749
     #0.32484355963
     #0.324843559629
-    generation = 0
+    shade = Shade(
+        f=f,
+        bounds=bounds,
+        population_size = 100,
+        archive_size = 100
+    )
+    f, x = shade.optimize()
 
-    batch = 50
-    pop_size = 20
-
-    archi = pg.archipelago()
-    num_islands = 18
-    for variant in range(num_islands):
-        algo = pg.algorithm(pg.sade(gen=batch, variant_adptv=2, memory=True))
-        archi.push_back(algo=algo, prob=prob, size=pop_size)
-
-    old_fevals = np.full(num_islands, 0);
-
-    def get_archi_champion(archi):
-        f = np.array(archi.get_champions_f()).flatten()
-        s = np.argsort(f)
-        x = archi.get_champions_x()[s[0]]
-        f = archi.get_champions_f()[s[0]][0]
-        return x, f, s[0]
-
-    pg.mp_island.init_pool()
-    pg.mp_island.resize_pool(pg.mp_island.get_pool_size() - 1)
-
-    best = np.finfo(np.float64).max
-    num_stagnated = 0
-
-    for i in range(500):
-        archi.evolve(1)
-        archi.wait()
-        islands = list(archi)
-
-        best_x_f = []
-        x = np.array(archi.get_champions_x())
-        f = np.array(archi.get_champions_f())
-        dt = np.dtype([("x", x.dtype, (x.shape[1],)), ("f", f.dtype, (f.shape[1],))])
-        all_x_f=np.empty(0, dtype=dt)
-        for island in islands:
-            pop = island.get_population()
-            f = pop.champion_f
-            x = pop.champion_x
-            best_x_f.append((x, f))
-            f = pop.get_f()
-            x = pop.get_x()
-            a = np.empty(len(x), dtype=dt)
-            a["x"]=x
-            a["f"]=f
-            all_x_f = np.concatenate((all_x_f, a))
-
-        generation += batch
-        x, f, i = get_archi_champion(archi)
-        if np.isclose(f, best, atol=1e-9, rtol=1e-20):
-            num_stagnated += 1
-            #if num_stagnated > 20:
-            #    break
-        else:
-            best = f
-            num_stagnated = 0
-        print("Generation %i: variant %i: best %f, same for: %i" % (generation, i, f, num_stagnated))
-        print(np.array(best_x_f).T[1])
-
-        _, i = np.unique(np.round(all_x_f["x"], 10), axis=0, return_index=True)
-        unique_x_f = np.empty(len(i), dtype=dt)
-        unique_x_f["x"] = all_x_f["x"][i]
-        unique_x_f["f"] = all_x_f["f"][i]
-
-        if True:
-            for i, island in enumerate(islands):
-                if False:
-                    pop = island.get_population()
-                    f = pop.get_f().flatten()
-                    s = np.argsort(f)
-                    j = 1
-                    for fx in best_x_f:
-                        if fx[1] != pop.champion_f:
-                            pop.set_xf(int(s[-j]), fx[0], fx[1])
-                            j = j + 1
-                else:
-                    num_islands = len(islands)
-                    pop = island.get_population()
-                    x = np.array(pop.get_x())
-                    f = np.array(pop.get_f())
-                    _, unique_pop = np.unique(np.round(x, 10), axis=0, return_index=True)
-                    unique_x = x[unique_pop]
-                    unique_f = f[unique_pop]
-                    s = np.argsort(unique_f.flatten())
-                    unique_x = unique_x[s]
-                    unique_f = unique_f[s]
-                    if len(unique_f) > pop_size - num_islands - 1:
-                        unique_x = unique_x[:pop_size - (num_islands - 1)]
-                        unique_f = unique_f[:pop_size - (num_islands - 1)]
-                    for xf in best_x_f:
-                        if xf[1] != pop.champion_f:
-                            unique_x = np.concatenate((unique_x, (xf[0],)))
-                            unique_f = np.concatenate((unique_f, (xf[1],)))
-
-                    np.random.shuffle(unique_pop)
-                    unique_x = np.concatenate((unique_x, x[unique_pop][:pop_size - len(unique_x)]))
-                    unique_f = np.concatenate((unique_f, f[unique_pop][:pop_size - len(unique_x)]))
-
-                    for i, (x, f) in enumerate(zip(unique_x, unique_f)):
-                        pop.set_xf(i, x, f)
-
-                island.set_population(pop)
-
-        new_fevals = np.array([i.get_population().problem.get_fevals() for i in islands])
-        fevals = new_fevals - old_fevals
-        print("Evaluations %s" % (fevals))
-
-        for i, num_evals in enumerate(fevals):
-            if num_evals < 3 * pop_size:
-                new_island = random.randrange(len(islands))
-                print("Stagnated island %i, replacing with %i" %(i, new_island))
-                pop = islands[i].get_population()
-                new_pop = islands[new_island].get_population()
-                xs = new_pop.get_x();
-                fs = new_pop.get_f();
-                best_idx = pop.best_idx()
-                for j, (x, f) in enumerate(zip(xs, fs)):
-                    if j != best_idx:
-                        pop.set_xf(j, x, f)
-                islands[i].set_population(pop)
-
-        old_fevals = new_fevals
-
-    x = get_archi_champion(archi)[0]
-
-    switch_angles = scale(x[:num_switches], bs)
-    finger_angles = scale(x[num_switches:-2], bf)
-    switch_pos = np.array((scale(x[-2], bx), scale(x[-1], by)))
+    switch_angles = x[:num_switches]
+    finger_angles = x[num_switches:-2]
+    switch_pos = (x[-2], x[-1])
     switch_positions, forbidden_area = calculate_switches(switch_pos, switch_angles)
 
     total_effort = 0
