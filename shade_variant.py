@@ -69,6 +69,8 @@ class Shade:
                 ret = -0.1
                 while ret <= 0.0:
                     ret = stats.cauchy.rvs(mu, 0.1)
+                if ret > 1.0:
+                    ret = 1.0
                 return ret
 
             pop_sf = np.fromiter((cauchy(mu) for mu in mu_sf), dtype=np.float64, count=self.population_size)
@@ -117,8 +119,8 @@ class Shade:
                     newcr /= np.sum(weights * success_cr)
 
                 memory_sf[memory_pos % self.memory_size] = newsf
-                if memory_cr[memory_pos % self.memory_size] != 0:
-                    memory_cr[memory_pos % self.memory_size] = newcr
+                #if memory_cr[memory_pos % self.memory_size] != 0:
+                memory_cr[memory_pos % self.memory_size] = newcr
                 memory_pos += 1
 
                 print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
