@@ -4,11 +4,12 @@ import scipy.stats as stats
 import itertools
 
 class Shade:
-    def __init__(self, f, bounds, max_fevals, population_size, archive_rate, memory_size):
+    def __init__(self, f, bounds, max_fevals, population_size, p, archive_rate, memory_size):
         self.bounds = np.array(list(bounds), ndmin=2)
         self.num_dim = len(self.bounds)
         self.f = f
         self.initial_population_size = population_size
+        self.p = p
         self.archive_rate = archive_rate
         self.memory_size = memory_size
         self.max_fevals = max_fevals
@@ -28,7 +29,7 @@ class Shade:
         self.archive = np.empty((self.archive_size, self.num_dim))
         archive_values = np.empty(self.num_dim)
         self.current_archive_size = 0
-        p_max = int(self.population_size * 0.2)
+        p_max = int(self.population_size * self.p)
         memory_pos = 0
         while True:
             sorted_population = np.argsort(population_values)
@@ -47,7 +48,7 @@ class Shade:
                 self.archive_size = int(self.population_size * self.archive_rate)
                 if self.current_archive_size > self.archive_size:
                     self.current_archive_size = self.archive_size
-                p_max = int(self.population_size * 0.2)
+                p_max = int(self.population_size * self.p)
 
             print("New population size:", new_population_size)
             print("Generation %i, evals %i, f: %f" % (generation, self.nevals, self.best[0]))
@@ -119,8 +120,8 @@ class Shade:
                     newcr /= np.sum(weights * success_cr)
 
                 memory_sf[memory_pos % self.memory_size] = newsf
-                #if memory_cr[memory_pos % self.memory_size] != 0:
-                memory_cr[memory_pos % self.memory_size] = newcr
+                if memory_cr[memory_pos % self.memory_size] != 0:
+                    memory_cr[memory_pos % self.memory_size] = newcr
                 memory_pos += 1
 
                 print("Parameter adaptation sf: %f, cr: %f" % (newsf, newcr))
@@ -164,9 +165,9 @@ class Shade:
             if np.random.random() < cross_rate or i==random_variable:
                 ret[i] = self.population[current][i] + scaling_factor * \
                             (self.population[pbesti][i] - self.population[current][i]) + scaling_factor * \
-                            (self.population[r1][i] - r2_value[i]);
+                            (self.population[r1][i] - r2_value[i])
             else:
-                ret[i] = self.population[current][i];
+                ret[i] = self.population[current][i]
 
             # Fixup bounds
             if ret[i] < 0.0:
