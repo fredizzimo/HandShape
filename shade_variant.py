@@ -63,7 +63,8 @@ class Shade:
                 self.sorted_population = np.argsort(self.population_values)
                 best_index = self.sorted_population[0]
                 if self.population_values[best_index] < self.best[0]:
-                    self.best = self.population_values[best_index], self.scale(self.population[best_index])
+                    self.best = self.population_values[best_index], \
+                                Shade.Runtime.scale(self.population[best_index], self.bounds)
 
                 new_population_size = self.adapt_population_size()
 
@@ -182,7 +183,7 @@ class Shade:
             ranges = np.linspace(0, self.population_size, self.num_processes + 1, dtype=int)
             results = [
                 pool.apply_async(Shade.Runtime.evaluate_subpopulation,
-                              (self.f, self.scale, population[ranges[i]:ranges[i+1]]))
+                              (self.f, self.bounds, population[ranges[i]:ranges[i+1]]))
                 for i in range(self.num_processes)]
             for i in range(self.num_processes):
                 ret[ranges[i]:ranges[i+1]] = results[i].get()
@@ -191,14 +192,17 @@ class Shade:
             return ret
 
         @staticmethod
-        def evaluate_subpopulation(f, scale, population):
-            iter = (f(scale(args)) for args in population)
+        def evaluate_subpopulation(f, bounds, population):
+            iter = (f(Shade.Runtime.scale(args, bounds)) for args in population)
             ret = np.fromiter(iter, dtype=np.float64, count=len(population))
             return ret
 
-        def scale(self, args):
-            iter = (args[i] * (self.bounds[i][1] - self.bounds[i][0]) + self.bounds[i][0] for i in range(self.num_dim))
-            return np.fromiter(iter, dtype=np.float64, count=self.num_dim)
+        @staticmethod
+        def scale(args, bounds):
+            num_dim = len(bounds)
+            iter = (args[i] * (bounds[i][1] - bounds[i][0]) + bounds[i][0] for i in range(num_dim))
+            return np.fromiter(iter, dtype=np.float64, count=num_dim)
+
 
         def currentToPBest1Bin(self, current):
             cross_rate = self.pop_cr[current]
