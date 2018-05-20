@@ -1,7 +1,7 @@
 import numpy as np
-import scipy as sp
 import scipy.stats as stats
 import itertools
+from pathos.multiprocessing import Pool, cpu_count
 
 class Shade:
     def __init__(self, f, bounds, max_fevals, population_size, p, archive_rate, memory_size, learning_rate):
@@ -40,7 +40,7 @@ class Shade:
             self.generation = 0
             self.population_size = self.initial_population_size
             self.population = np.random.random((self.population_size, self.num_dim))
-            self.population_values = self.evaluate_population(self.population)
+            self.population_values = np.empty(self.population_size)
             self.covariance = np.cov(self.population, rowvar=False)
             self.archive_size = int(self.population_size * self.archive_rate)
             self.archive = np.empty((self.archive_size, self.num_dim))
@@ -53,7 +53,11 @@ class Shade:
             self.new_pop_values = np.empty((self.initial_population_size, 8))
             self.memory_pos = 0
 
+            self.num_processes = cpu_count() - 1 if cpu_count() > 1 else 1
+
         def optimize(self):
+            pool = Pool(processes=self.num_processes)
+            self.population_values = self.evaluate_population(self.population, pool)
 
             while True:
                 self.sorted_population = np.argsort(self.population_values)
@@ -69,18 +73,18 @@ class Shade:
                     break
 
                 self.calculate_parameters()
-                deltas = self.generate_new_population()
+                deltas = self.generate_new_population(pool)
                 success_indices = self.update_successful()
                 self.adapt_parameters(deltas, success_indices)
 
                 self.generation += 1
 
-        def generate_new_population(self):
+        def generate_new_population(self, pool):
             self.new_pop = np.fromiter(itertools.chain.from_iterable(
                 (self.currentToPBest1Bin(i) for i in range(self.population_size))),
                 dtype=np.float64, count=self.population_size * self.num_dim)
             self.new_pop.shape = (self.population_size, self.num_dim)
-            self.new_pop_values = self.evaluate_population(self.new_pop)
+            self.new_pop_values = self.evaluate_population(self.new_pop, pool)
             return self.new_pop - self.population
 
         def update_successful(self):
@@ -173,9 +177,22 @@ class Shade:
                 self.covariance = np.cov(self.population, rowvar=False)
             return new_population_size
 
-        def evaluate_population(self, population):
-            iter = (self.f(self.scale(args)) for args in population)
+        def evaluate_population(self, population, pool):
+            ret = np.empty(self.population_size)
+            ranges = np.linspace(0, self.population_size, self.num_processes + 1, dtype=int)
+            results = [
+                pool.apply_async(Shade.Runtime.evaluate_subpopulation,
+                              (self.f, self.scale, population[ranges[i]:ranges[i+1]]))
+                for i in range(self.num_processes)]
+            for i in range(self.num_processes):
+                ret[ranges[i]:ranges[i+1]] = results[i].get()
+
             self.nevals += len(population)
+            return ret
+
+        @staticmethod
+        def evaluate_subpopulation(f, scale, population):
+            iter = (f(scale(args)) for args in population)
             ret = np.fromiter(iter, dtype=np.float64, count=len(population))
             return ret
 

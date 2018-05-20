@@ -8,5 +8,6 @@ dependencies:
   - scipy=0.19.1
   - jinja2=2.9.6
   - pygmo=2.7
+  - pathos=0.2.1
   - pip:
     - pyclipper==1.1.0
