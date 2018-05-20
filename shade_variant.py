@@ -90,7 +90,7 @@ class Shade:
 
             success_indices = []
 
-            deltas = new_pop_values - population_values
+            deltas = new_pop - self.population
 
             for i in range(self.population_size):
                 if new_pop_values[i] <= population_values[i]:
@@ -111,9 +111,10 @@ class Shade:
                 success_cr = pop_cr[success_indices]
                 success_er = pop_er[success_indices]
                 success_deltas = deltas[success_indices]
+                success_distances = np.linalg.norm(success_deltas, axis=1)
 
-                deltasum = np.sum(success_deltas)
-                weights = success_deltas / deltasum
+                deltasum = np.sum(success_distances)
+                weights = success_distances / deltasum
 
                 newsf = np.sum(weights * success_sf * success_sf)
                 if newsf != 0:
