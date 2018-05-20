@@ -193,7 +193,8 @@ def optimize_switches(hand_lengths, num_switches, num_passes=2, iter_success=100
         archive_rate=2.6,
         memory_size=6,
         learning_rate=0.3,
-        use_multithreading = False
+        use_multithreading = True,
+        multithreading_min_batch=5
     )
     f, x = shade.optimize()
 

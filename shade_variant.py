@@ -2,10 +2,11 @@ import numpy as np
 import scipy.stats as stats
 import itertools
 from pathos.multiprocessing import Pool, cpu_count
+import timeit
 
 class Shade:
     def __init__(self, f, bounds, max_fevals, population_size, p, archive_rate, memory_size, learning_rate,
-                 use_multithreading):
+                 use_multithreading, multithreading_min_batch):
         self.bounds = np.array(list(bounds), ndmin=2)
         self.num_dim = len(self.bounds)
         self.f = f
@@ -16,10 +17,14 @@ class Shade:
         self.max_fevals = max_fevals
         self.learning_rate = learning_rate
         self.use_multithreading = use_multithreading
+        self.multithreading_min_batch = multithreading_min_batch
 
     def optimize(self):
+        start = timeit.default_timer()
         runtime = Shade.Runtime(self)
         runtime.optimize()
+        end = timeit.default_timer()
+        print("Time elapsed %s" % (end - start))
         return runtime.best
 
     class Runtime:
@@ -55,6 +60,8 @@ class Shade:
             self.new_pop = np.empty(self.initial_population_size)
             self.new_pop_values = np.empty((self.initial_population_size, 8))
             self.memory_pos = 0
+            self.multithreading_min_batch = parent.multithreading_min_batch
+
 
             self.num_processes = cpu_count() - 1 if cpu_count() > 1 else 1
 
@@ -186,13 +193,19 @@ class Shade:
 
         def evaluate_population(self, population, pool):
             if pool is not None:
+                max_processes = int(round(self.population_size / self.multithreading_min_batch))
+                num_processes = max_processes if self.num_processes >= max_processes else self.num_processes
+            else:
+                num_processes = 1
+
+            if num_processes > 1:
                 ret = np.empty(self.population_size)
-                ranges = np.linspace(0, self.population_size, self.num_processes + 1, dtype=int)
+                ranges = np.linspace(0, self.population_size, num_processes + 1, dtype=int)
                 results = [
                     pool.apply_async(Shade.Runtime.evaluate_subpopulation,
                                   (self.f, self.bounds, population[ranges[i]:ranges[i+1]]))
-                    for i in range(self.num_processes)]
-                for i in range(self.num_processes):
+                    for i in range(num_processes)]
+                for i in range(num_processes):
                     ret[ranges[i]:ranges[i+1]] = results[i].get()
             else:
                 ret = Shade.Runtime.evaluate_subpopulation(self.f, self.bounds, population)
