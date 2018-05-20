@@ -46,6 +46,11 @@ class Shade:
             self.archive = np.empty((self.archive_size, self.num_dim))
             self.current_archive_size = 0
             self.p_max = int(self.population_size * self.p)
+            self.pop_cr = np.empty(self.initial_population_size)
+            self.pop_sf = np.empty(self.initial_population_size)
+            self.pop_er = np.empty(self.initial_population_size)
+            self.new_pop = np.empty(self.initial_population_size)
+            self.new_pop_values = np.empty((self.initial_population_size, 8))
             self.memory_pos = 0
 
         def optimize(self):
@@ -56,104 +61,117 @@ class Shade:
                 if self.population_values[best_index] < self.best[0]:
                     self.best = self.population_values[best_index], self.scale(self.population[best_index])
 
-                new_population_size = \
-                    round(((4 - self.initial_population_size) / self.max_fevals) * self.nevals + self.initial_population_size)
-
-                if new_population_size < self.population_size:
-                    self.population = self.population[self.sorted_population][:new_population_size].copy()
-                    self.population_values = self.population_values[self.sorted_population][:new_population_size].copy()
-                    self.sorted_population = np.arange(new_population_size)
-                    self.population_size = new_population_size
-                    self.archive_size = int(self.population_size * self.archive_rate)
-                    if self.current_archive_size > self.archive_size:
-                        self.current_archive_size = self.archive_size
-                    self.p_max = int(self.population_size * self.p)
-                    self.covariance = np.cov(self.population, rowvar=False)
+                new_population_size = self.adapt_population_size()
 
                 print("New population size:", new_population_size)
                 print("Generation %i, evals %i, f: %f" % (self.generation, self.nevals, self.best[0]))
                 if self.nevals >= self.max_fevals:
                     break
-                h_indices = np.random.randint(0, self.memory_size, self.population_size)
-                mu_sf = self.memory_sf[h_indices]
-                mu_cr = self.memory_cr[h_indices]
-                mu_er = self.memory_er[h_indices]
 
-                def gaussian(mu):
-                    if (mu != 0):
-                        return np.clip(np.random.normal(mu, 0.1), 0.0, 1.0)
-                    else:
-                        return 0
-                pop_cr = np.fromiter((gaussian(mu) for mu in mu_cr), dtype=np.float64, count=self.population_size)
-                pop_er = np.fromiter((gaussian(mu) for mu in mu_er), dtype=np.float64, count=self.population_size)
-
-                def cauchy(mu):
-                    ret = -0.1
-                    while ret <= 0.0:
-                        ret = stats.cauchy.rvs(mu, 0.1)
-                    if ret > 1.0:
-                        ret = 1.0
-                    return ret
-
-                pop_sf = np.fromiter((cauchy(mu) for mu in mu_sf), dtype=np.float64, count=self.population_size)
-
-                new_pop = np.fromiter(itertools.chain.from_iterable(
-                    (self.currentToPBest1Bin(i, pop_cr[i], pop_sf[i], pop_er[i])
-                        for i in range(self.population_size))),
-                    dtype=np.float64, count=self.population_size * self.num_dim)
-                new_pop.shape = (self.population_size, self.num_dim)
-
-                new_pop_values = self.evaluate_population(new_pop)
-
-                success_indices = []
-
-                deltas = new_pop - self.population
-
-                for i in range(self.population_size):
-                    if new_pop_values[i] <= self.population_values[i]:
-                        if new_pop_values[i] < self.population_values[i]:
-                            if self.current_archive_size == self.archive_size:
-                                archive_index =np.random.randint(0, self.archive_size)
-                            else:
-                                archive_index = self.current_archive_size
-                                self.current_archive_size += 1
-                            self.archive[archive_index] = self.population[i]
-
-                            self.population_values[i] = new_pop_values[i]
-                            success_indices.append(i)
-                        self.population[i] = new_pop[i]
-
-                if len(success_indices):
-                    success_sf = pop_sf[success_indices]
-                    success_cr = pop_cr[success_indices]
-                    success_er = pop_er[success_indices]
-                    success_deltas = deltas[success_indices]
-                    success_distances = np.linalg.norm(success_deltas, axis=1)
-
-                    deltasum = np.sum(success_distances)
-                    weights = success_distances / deltasum
-
-                    newsf = np.sum(weights * success_sf * success_sf)
-                    if newsf != 0:
-                        newsf /= np.sum(weights * success_sf)
-
-                    newcr = np.sum(weights * success_cr * success_cr)
-                    if newcr != 0:
-                        newcr /= np.sum(weights * success_cr)
-
-                    newer = np.sum(weights * success_er * success_er)
-                    if newer != 0:
-                        newer /= np.sum(weights * success_er)
-
-                    self.memory_sf[self.memory_pos % self.memory_size] = newsf
-                    self.memory_er[self.memory_pos % self.memory_size] = newer
-                    if self.memory_cr[self.memory_pos % self.memory_size] != 0:
-                        self.memory_cr[self.memory_pos % self.memory_size] = newcr
-                    self.memory_pos += 1
-
-                    print("Parameter adaptation sf: %f, cr: %f, er: %f" % (newsf, newcr, newer))
+                self.calculate_parameters()
+                deltas = self.generate_new_population()
+                success_indices = self.update_successful()
+                self.adapt_parameters(deltas, success_indices)
 
                 self.generation += 1
+
+        def generate_new_population(self):
+            self.new_pop = np.fromiter(itertools.chain.from_iterable(
+                (self.currentToPBest1Bin(i) for i in range(self.population_size))),
+                dtype=np.float64, count=self.population_size * self.num_dim)
+            self.new_pop.shape = (self.population_size, self.num_dim)
+            self.new_pop_values = self.evaluate_population(self.new_pop)
+            return self.new_pop - self.population
+
+        def update_successful(self):
+            success_indices = []
+            for i in range(self.population_size):
+                if self.new_pop_values[i] <= self.population_values[i]:
+                    if self.new_pop_values[i] < self.population_values[i]:
+                        if self.current_archive_size == self.archive_size:
+                            archive_index = np.random.randint(0, self.archive_size)
+                        else:
+                            archive_index = self.current_archive_size
+                            self.current_archive_size += 1
+                        self.archive[archive_index] = self.population[i]
+
+                        self.population_values[i] = self.new_pop_values[i]
+                        success_indices.append(i)
+                    self.population[i] = self.new_pop[i]
+            return success_indices
+
+        def calculate_parameters(self):
+            h_indices = np.random.randint(0, self.memory_size, self.population_size)
+            mu_sf = self.memory_sf[h_indices]
+            mu_cr = self.memory_cr[h_indices]
+            mu_er = self.memory_er[h_indices]
+
+            def gaussian(mu):
+                if mu != 0:
+                    return np.clip(np.random.normal(mu, 0.1), 0.0, 1.0)
+                else:
+                    return 0
+
+            self.pop_cr = np.fromiter((gaussian(mu) for mu in mu_cr), dtype=np.float64, count=self.population_size)
+            self.pop_er = np.fromiter((gaussian(mu) for mu in mu_er), dtype=np.float64, count=self.population_size)
+
+            def cauchy(mu):
+                ret = -0.1
+                while ret <= 0.0:
+                    ret = stats.cauchy.rvs(mu, 0.1)
+                if ret > 1.0:
+                    ret = 1.0
+                return ret
+
+            self.pop_sf = np.fromiter((cauchy(mu) for mu in mu_sf), dtype=np.float64, count=self.population_size)
+
+        def adapt_parameters(self, deltas, success_indices):
+            if len(success_indices):
+                success_sf = self.pop_sf[success_indices]
+                success_cr = self.pop_cr[success_indices]
+                success_er = self.pop_er[success_indices]
+                success_deltas = deltas[success_indices]
+                success_distances = np.linalg.norm(success_deltas, axis=1)
+
+                deltasum = np.sum(success_distances)
+                weights = success_distances / deltasum
+
+                newsf = np.sum(weights * success_sf * success_sf)
+                if newsf != 0:
+                    newsf /= np.sum(weights * success_sf)
+
+                newcr = np.sum(weights * success_cr * success_cr)
+                if newcr != 0:
+                    newcr /= np.sum(weights * success_cr)
+
+                newer = np.sum(weights * success_er * success_er)
+                if newer != 0:
+                    newer /= np.sum(weights * success_er)
+
+                self.memory_sf[self.memory_pos % self.memory_size] = newsf
+                self.memory_er[self.memory_pos % self.memory_size] = newer
+                if self.memory_cr[self.memory_pos % self.memory_size] != 0:
+                    self.memory_cr[self.memory_pos % self.memory_size] = newcr
+                self.memory_pos += 1
+
+                print("Parameter adaptation sf: %f, cr: %f, er: %f" % (newsf, newcr, newer))
+
+
+        def adapt_population_size(self):
+            new_population_size = \
+                round(
+                    ((4 - self.initial_population_size) / self.max_fevals) * self.nevals + self.initial_population_size)
+            if new_population_size < self.population_size:
+                self.population = self.population[self.sorted_population][:new_population_size].copy()
+                self.population_values = self.population_values[self.sorted_population][:new_population_size].copy()
+                self.sorted_population = np.arange(new_population_size)
+                self.population_size = new_population_size
+                self.archive_size = int(self.population_size * self.archive_rate)
+                if self.current_archive_size > self.archive_size:
+                    self.current_archive_size = self.archive_size
+                self.p_max = int(self.population_size * self.p)
+                self.covariance = np.cov(self.population, rowvar=False)
+            return new_population_size
 
         def evaluate_population(self, population):
             iter = (self.f(self.scale(args)) for args in population)
@@ -165,7 +183,10 @@ class Shade:
             iter = (args[i] * (self.bounds[i][1] - self.bounds[i][0]) + self.bounds[i][0] for i in range(self.num_dim))
             return np.fromiter(iter, dtype=np.float64, count=self.num_dim)
 
-        def currentToPBest1Bin(self, current, cross_rate, scaling_factor, eigen_ratio):
+        def currentToPBest1Bin(self, current):
+            cross_rate = self.pop_cr[current]
+            scaling_factor = self.pop_sf[current]
+            eigen_ratio = self.pop_er[current]
             if self.p_max > 0:
                 pbesti = np.random.randint(0, self.p_max)
             else:
@@ -182,7 +203,7 @@ class Shade:
             else:
                 r2_value = self.archive[r2 - self.population_size]
 
-            donor = np.fromiter((
+            target_vector = np.fromiter((
                 self.population[current][i] + scaling_factor *
                 (self.population[pbesti][i] - self.population[current][i]) +
                 scaling_factor * (self.population[r1][i] - r2_value[i]) for i in range(self.num_dim)),
@@ -196,24 +217,29 @@ class Shade:
             eig = np.random.random() < eigen_ratio
 
             if eig:
-                p = np.dot(b_conjugate_transpose, self.population[current])
-                v = np.dot(b_conjugate_transpose, donor)
+                current_vector = np.dot(b_conjugate_transpose, self.population[current])
+                target_vector  = np.dot(b_conjugate_transpose, target_vector)
             else:
-                p = self.population[current]
-                v = donor
+                current_vector = self.population[current]
 
-            random_variable = np.random.randint(0, self.num_dim)
-            xover = (v[i] if np.random.random() < cross_rate or i == random_variable else p[i] for i in range(self.num_dim))
+            forced_dimension = np.random.randint(0, self.num_dim)
+            xover = (target_vector [i]
+                     if np.random.random() < cross_rate or i == forced_dimension
+                     else current_vector[i]
+                     for i in range(self.num_dim))
             ret = np.fromiter(xover, np.float64, count=self.num_dim)
 
             if eig:
                 ret = np.dot(b, ret)
 
+            self.constrain_to_bounds(current, ret)
+
+            return ret
+
+        def constrain_to_bounds(self, current, ret):
             for i in range(self.num_dim):
                 # Fixup bounds
                 if ret[i] < 0.0:
                     ret[i] = self.population[current][i] * 0.5
                 elif ret[i] > 1.0:
                     ret[i] = (1.0 - self.population[current][i]) * 0.5
-
-            return ret
