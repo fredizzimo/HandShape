@@ -24,7 +24,7 @@ class Shade:
         runtime = Shade.Runtime(self)
         runtime.optimize()
         end = timeit.default_timer()
-        print("Time elapsed %s" % (end - start))
+        print("Time elapsed %s, evolve: %s, genrate %s" % (end - start, runtime.evolve_time, runtime.generate_time))
         return runtime.best
 
     class Runtime:
@@ -65,6 +65,9 @@ class Shade:
 
             self.num_processes = cpu_count() - 1 if cpu_count() > 1 else 1
 
+            self.evolve_time = 0.0
+            self.generate_time = 0.0
+
         def optimize(self):
             if self.use_multithreading:
                 pool = Pool(processes=self.num_processes)
@@ -94,10 +97,12 @@ class Shade:
                 self.generation += 1
 
         def generate_new_population(self, pool):
+            start = timeit.default_timer()
             self.new_pop = np.fromiter(itertools.chain.from_iterable(
                 (self.currentToPBest1Bin(i) for i in range(self.population_size))),
                 dtype=np.float64, count=self.population_size * self.num_dim)
             self.new_pop.shape = (self.population_size, self.num_dim)
+            self.generate_time += timeit.default_timer() - start
             self.new_pop_values = self.evaluate_population(self.new_pop, pool)
             return self.new_pop - self.population
 
@@ -192,6 +197,7 @@ class Shade:
             return new_population_size
 
         def evaluate_population(self, population, pool):
+            start = timeit.default_timer()
             if pool is not None:
                 max_processes = int(round(self.population_size / self.multithreading_min_batch))
                 num_processes = max_processes if self.num_processes >= max_processes else self.num_processes
@@ -211,6 +217,7 @@ class Shade:
                 ret = Shade.Runtime.evaluate_subpopulation(self.f, self.bounds, population)
 
             self.nevals += len(population)
+            self.evolve_time += timeit.default_timer() - start
             return ret
 
         @staticmethod
