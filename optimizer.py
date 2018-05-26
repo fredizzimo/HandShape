@@ -10,10 +10,9 @@ import contextlib
 import jinja2
 import json
 import pyclipper
-import time
-import pygmo as pg
-import random
 from shade_variant import Shade
+from smac.facade.func_facade import fmin_smac
+
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -246,6 +245,18 @@ def print_result(result):
 def get_finger_angles(switch_result):
     return [switch_result.finger_angles[1], switch_result.finger_angles[2], switch_result.finger_angles[2] * 2.0 / 3.0]
 
+def branin(x):
+    x1 = x.get_array()[0]
+    x2 = x.get_array()[1]
+    a = 1.
+    b = 5.1 / (4.*np.pi**2)
+    c = 5. / np.pi
+    r = 6.
+    s = 10.
+    t = 1. / (8.*np.pi)
+    ret = a*(x2-b*x1**2+c*x1-r)**2+s*(1-t)*np.cos(x1)+s
+    return ret
+
 def main():
     parser = argparse.ArgumentParser(description="Optimize HandShape keyboard switch placement")
     parser.add_argument(
@@ -271,7 +282,23 @@ def main():
         "--load",
         type=argparse.FileType("rb"),
         help="Load the optimization result from a file, this skips the optimization step")
+    parser.add_argument(
+        "--optimize_shade",
+        help="Optimize the parameters for the shade algorithm. You don't normally need to do this and it will take"
+        "a long time",
+        action="store_true",
+        )
     args = parser.parse_args()
+
+    if args.optimize_shade:
+        print("Optimizing shade")
+        x, cost, _ = fmin_smac(func=branin,  # function
+                               x0=[0, 0],  # default configuration
+                               bounds=[(-5, 10), (0, 15)],  # limits
+                               maxfun=50000,  # maximum number of evaluations
+                               rng=3)  # random seed
+        print("Optimum at {} with cost of {}".format(x, cost))
+        return
 
     if args.load:
         optimization_results = pickle.load(args.load)
