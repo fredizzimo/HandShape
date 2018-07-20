@@ -10,9 +10,14 @@ import contextlib
 import jinja2
 import json
 import pyclipper
+import logging
 from shade_variant import Shade
 from smac.facade.func_facade import fmin_smac
-
+from smac.tae.execute_func import ExecuteTAFuncDict
+from smac.scenario.scenario import Scenario
+from smac.facade.smac_facade import SMAC
+from smac.configspace import ConfigurationSpace
+from ConfigSpace.hyperparameters import UniformFloatHyperparameter
 
 switch_size = 19.05
 switch_finger_angle = 20
@@ -245,9 +250,22 @@ def print_result(result):
 def get_finger_angles(switch_result):
     return [switch_result.finger_angles[1], switch_result.finger_angles[2], switch_result.finger_angles[2] * 2.0 / 3.0]
 
-def branin(x):
-    x1 = x.get_array()[0]
-    x2 = x.get_array()[1]
+def branin(config):
+    x1 = config["a"]
+    x2 = config["b"]
+    print("Running %f %f" % (x1, x2))
+    a = 1.
+    b = 5.1 / (4.*np.pi**2)
+    c = 5. / np.pi
+    r = 6.
+    s = 10.
+    t = 1. / (8.*np.pi)
+    ret = a*(x2-b*x1**2+c*x1-r)**2+s*(1-t)*np.cos(x1)+s
+    return ret
+
+def branin2(x):
+    x1 = x[0]
+    x2 = x[1]
     a = 1.
     b = 5.1 / (4.*np.pi**2)
     c = 5. / np.pi
@@ -292,12 +310,32 @@ def main():
 
     if args.optimize_shade:
         print("Optimizing shade")
-        x, cost, _ = fmin_smac(func=branin,  # function
-                               x0=[0, 0],  # default configuration
-                               bounds=[(-5, 10), (0, 15)],  # limits
-                               maxfun=50000,  # maximum number of evaluations
-                               rng=3)  # random seed
-        print("Optimum at {} with cost of {}".format(x, cost))
+        logging.getLogger().setLevel(logging.DEBUG)
+        if False:
+            x, cost, _ = fmin_smac(func=branin2,  # function
+                                   x0=[0, 0],  # default configuration
+                                   bounds=[(-5, 10), (0, 15)],  # limits
+                                   maxfun=100,  # maximum number of evaluations
+                                   rng=3)  # random seed
+            print(x, cost)
+
+        cs = ConfigurationSpace()
+        a = UniformFloatHyperparameter("a", -5, 10, default_value=0)
+        b = UniformFloatHyperparameter("b", 0, 15, default_value=0)
+        cs.add_hyperparameters([a, b])
+        scenario = Scenario(
+            {"run_obj": "quality",   # we optimize quality (alternatively runtime)
+             "runcount-limit": 500,  # maximum function evaluations
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffiguration space
+             "deterministic": "true"
+        })
+        smac = SMAC(scenario=scenario, rng=np.random.RandomState(42),
+                    tae_runner=branin)
+
+        incumbent = smac.optimize()
+
+        inc_value = branin(incumbent)
+        print("Optimum at {} with cost of {}".format(incumbent, inc_value))
         return
 
     if args.load:
